@@ -1,0 +1,2 @@
+from lempel_ziv77 import LempelZiv77
+from huffman_code import HuffmanCode

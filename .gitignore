@@ -1,0 +1,24 @@
+# python enviroment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# pycharm settings
+.idea/
+
+# test output files
+huffman_test_output_files/
+advance_Lempel_ziv_test_output_files/
+basic_Lempel_ziv_test_output_files/
+pytest_basic_outputs/
+
+# more stuff
+test_files/
+*.bin
+*.amr
+*.huffman_coded
+test_data_*
+test_decompressed_file_*
