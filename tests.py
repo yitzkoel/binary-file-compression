@@ -2,7 +2,6 @@ from lempel_ziv77 import LempelZiv77
 import time
 import os
 from huffman_code import HuffmanCode
-
 """
 Tests for code implementing LempelZiv77 and huffman compression algorithms
 """
@@ -14,6 +13,7 @@ def test_huffman_code(file_name,output_dir):
     # file to lempel ziv
     WINDOW_SIZE = 1 << 15
     lempel_ziv = LempelZiv77(WINDOW_SIZE, file_name)
+    lempel_ziv.compress_file()
     vec_list_before = lempel_ziv.get_vecs()
 
     # lempel ziv vecs to huffman code
@@ -53,7 +53,7 @@ def test_huffman_code(file_name,output_dir):
 
 def run_huffman_compression_test():
     files = ['test_files/Samp1.bin', 'test_files/Samp2.bin', 'test_files/Samp3.bin',
-             'test_files/Samp4.bin', 'test_files/Samp5.bin.amr']
+             'test_files/Samp4.bin', 'test_files/Samp5.bin']
     output_dir = "huffman_test_output_files"
     os.makedirs(output_dir, exist_ok=True)
     print()
@@ -68,6 +68,7 @@ def test_LempelZiv77(file_name, window_size, output_dir):
     # 1. Measure compression time
     start_comp = time.time()
     lz = LempelZiv77(window_size, file_name)
+    lz.compress_file()
     end_comp = time.time()
     base_name = os.path.basename(file_name)
 
@@ -105,7 +106,7 @@ def test_LempelZiv77(file_name, window_size, output_dir):
 def run_LempelZiv77_advance_test(window_size):
     # Assumption: These files exist in the directory
     files = ['test_files/Samp1.bin', 'test_files/Samp2.bin', 'test_files/Samp3.bin',
-             'test_files/Samp4.bin']
+             'test_files/Samp4.bin','test_files/Samp5.bin']
 
     output_dir = "advance_Lempel_ziv_test_output_files"
     os.makedirs(output_dir, exist_ok=True)
@@ -137,6 +138,7 @@ def basic_Lempel_ziv_test(data, num):
 
     # Compression
     lz = LempelZiv77(MAX_WINDOW_SIZE, file_path)
+    lz.compress_file()
 
     print(f"Compression vectors:")
     window_vec = lz.window_vec

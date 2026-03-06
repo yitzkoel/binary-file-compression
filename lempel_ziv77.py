@@ -13,27 +13,26 @@ class LempelZiv77:
     """
     buffer: FileByteReader
 
-    def __init__(self, window_size: int, file_name: str = None, window_vec: list[int] = None, literal_vec: list[int] = None,
+    def __init__(self, window_size: int, file_to_compress_name: str = None, window_vec: list[int] = None, literal_vec: list[int] = None,
                  past_start_index_vec: list[int] = None) -> None:
         """
         Initalize a Lempel viv obgect that can get a file and compress to vectors or it can get 3 vectors and decompress
         to a binary file.
         :param window_size: Size of the window we will seach for in the past for a match.
-        :param file_name: Name of the file to compress.
+        :param file_to_compress_name: Name of the file to compress.
         :param window_vec: Vector that holds the len of the window in past (called len above)
         :param literal_vec: The file_bytes[i+len+1] parameters.
         :param past_start_index_vec: The j parameter of the start of the window in the past.
         """
-        error_msg = "Wrong input parameters, must input window_size and file_name to compress, or window_vec, input literal_vec, past_start_index_vec to decompress"
+        error_msg = "Wrong input parameters, must input window_size and file_to_compress_name to compress, or window_vec, input literal_vec, past_start_index_vec to decompress"
         self.window_size = window_size
 
         # Check for wrong input parameters
         if(window_vec is None and literal_vec is None and past_start_index_vec is None):
-            if(file_name is None):
+            if(file_to_compress_name is None):
                 raise ValueError("Did not get a file to compress")
 
-            self.buffer = FileByteReader(window_size=window_size, file_name=file_name)
-            self.window_vec, self.literal_vec, self.past_start_index_vec = self._compress_file_()
+            self.buffer = FileByteReader(window_size=window_size, file_name=file_to_compress_name)
             return
 
         # got parameters for compression
@@ -54,7 +53,7 @@ class LempelZiv77:
         self.past_start_index_vec = past_start_index_vec
 
 
-    def _compress_file_(self) -> tuple[list[int],list[int],list[int]]:
+    def compress_file(self) -> None:
         """
         Compress the file into 3 vectors.
         :return: window_vec, literal_vec, past_start_index_vec that code the file.
@@ -88,8 +87,9 @@ class LempelZiv77:
             # slide the window to search for next max window match
             not_end_of_file = self.buffer.slide_window(window_length + 1)
             cur_location_in_past += window_length + 1
-
-        return  window_vec, literal_vec, past_start_index_vec
+        self.window_vec = window_vec
+        self.literal_vec = literal_vec
+        self.past_start_index_vec = past_start_index_vec
 
     def _find_window(self, past: bytearray, current: bytearray) -> tuple[int,int]:
         """
