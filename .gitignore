@@ -1,3 +1,5 @@
+###############------------- python gitignore--------------################
+
 # python enviroment
 .venv/
 venv/
@@ -22,3 +24,14 @@ test_files/
 *.huffman_coded
 test_data_*
 test_decompressed_file_*
+
+
+
+###############------------- cpp gitignore--------------################
+# CLion and CMake build directories
+cmake-build-debug/
+cmake-build-release/
+.idea/
+*.exe
+*.o
+*.obj
