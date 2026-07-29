@@ -48,7 +48,7 @@ class HuffmanCode:
                                              therefor the max depth of the tree is 257 that can be represende with 2 bytes)
                     <vec_i> -> For each 'literal' in the vec_i there are 3 cases:
                                        a. 'literal' is smaller than 256 -> encode the bits '0' + 'huffman code[literal]'
-                                       b. 'literal' is bigger than 255 -> represent 'literal' is base 256
+                                       b. 'literal' is bigger than 255 -> represent 'literal' in base 256
                                            (we assume that there are no literals bigger than 265^2 -1) so we will get
                                            'literal' = ab, such that a and b are smaller than 256.
                                            Then we will encode '1' + 'huffman code[a]' + 'huffman code[b]'
