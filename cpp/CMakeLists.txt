@@ -7,4 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(cpp_compressor
         src/main.cpp
+        src/binary_io.h
+        src/binary_io.cpp
 )
