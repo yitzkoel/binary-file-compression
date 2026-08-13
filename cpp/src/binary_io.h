@@ -8,7 +8,7 @@
 #include<fstream>
 #include <memory>
 
-# define BUFFER_SIZE 2<<20 // 1MB
+# define BUFFER_SIZE 2<<22 // 4MB
 
 namespace binary_io
 {   /*
@@ -25,32 +25,63 @@ namespace binary_io
         explicit FileReader(const std::string& file_name);
 
         /**
-         * slides the window BUFFER_SIZE(1MB) into the future of the file and saves it in the future var
-         * The past var is updated to what was the future before the slide.
+         * slides the window buffer 1MB forward..
+         * @return true if there is more to slide and false otherwise.
          */
-        void slide_window();
+        bool slide_window();
+
+
         /**
          * getter of the past window.
          * @return the array that holds the past window of the file
          */
-        std::array<uint8_t,BUFFER_SIZE>& get_past();
+        std::array<uint8_t,BUFFER_SIZE>& get_buffer();
 
         /**
-         * getter of the future window.
-         * @return the array that holds the future window of the file
+         * Gets the number of bytes that where writin into the buffer (from index 0 to the returned value).
+         * @return the number of bytes read from the file into the buffer
          */
-        std::array<uint8_t,BUFFER_SIZE>& get_future();
+        uint64_t get_num_bytes_read() const;
 
         ~FileReader();
 
     private:
-        std::array<uint8_t,BUFFER_SIZE> past{};
-        std::array<uint8_t,BUFFER_SIZE> future{};
+        auto buffer = std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
+        uint64_t num_bytes_read = 0;
         std::ifstream file;
     };
 
+
+
+
+
+
+
+
     class FileWriter
     {
+    public:
+        /**
+         *  The constructor to a file to write into
+         * @param file_path the path of the file to write into
+         */
+        explicit FileWriter(std::string& file_path);
+
+        /**
+         *  This method writes 'num_bytes_to_flush' bytes from 'buffer' into the file.
+         * @param buffer the buffer to write from into the file
+         * @param num_bytes_to_flush the number of bytes to read from the file
+         */
+        void flush_buffer_to_file(std::array<uint8_t,BUFFER_SIZE>& buffer, uint64_t num_bytes_to_flush);
+
+        /**
+         * Closes the file.
+         */
+        ~FileWriter();
+
+    private:
+        std::ofstream file;
+
     };
 }
 

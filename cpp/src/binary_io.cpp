@@ -12,26 +12,43 @@ namespace binary_io
         file = std::ifstream(file_name, std::ios::binary);
 
         if(!file) throw std::runtime_error("Failed to open file");
+    }
+    bool FileReader::slide_window()
+    {
+        if(file.eof()) return false;
 
-        file.read(reinterpret_cast<char*> (future.data()),BUFFER_SIZE);
+        file.read(reinterpret_cast<char*> (buffer->get_data()),BUFFER_SIZE);
+
+        num_bytes_read += file.gcount();
+
+        return true;
     }
-    void FileReader::slide_window()
+    std::array<uint8_t,BUFFER_SIZE>&  FileReader::get_buffer()
     {
-        if(file.eof()) return;
-        past = future;
-        file.read(reinterpret_cast<char*> (future.data()),BUFFER_SIZE);
-    }
-    std::array<uint8_t,BUFFER_SIZE>&  FileReader::get_past()
-    {
-        return past;
+        return *buffer;
     }
 
-    std::array<uint8_t,BUFFER_SIZE>&  FileReader::get_future()
+    uint64_t FileReader::get_num_bytes_read() const
     {
-        return future;
+        return num_bytes_read;
     }
 
     FileReader::~FileReader()
+    {
+        file.close();
+    }
+
+    FileWriter::FileWriter(std::string& file_path)
+    {
+        file = std::ofstream(file_path,std::ios::binary);
+    }
+
+    void FileWriter::flush_buffer_to_file(std::array<uint8_t, 2 << 22>& buffer, uint64_t num_bytes_to_flush)
+    {
+        file.write(reinterpret_cast<const char*>(buffer.data()), (long) num_bytes_to_flush);
+    }
+
+    FileWriter::~FileWriter()
     {
         file.close();
     }
