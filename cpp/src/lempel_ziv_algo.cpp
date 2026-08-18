@@ -2,21 +2,21 @@
 // Created by yitzk on 8/7/2026.
 //
 
-#include "lempel_ziv_algo.h"
+#include "../include/lempel_ziv_algo.h"
 
-Lempel_ziv_algo::Lempel_ziv_algo(std::string& file_path) :
-    input_file(file_path),
-    buffer(input_file.get_buffer()),
-    num_bytes_read(input_file.get_num_bytes_read()),
+Lempel_ziv_algo::Lempel_ziv_algo() :
     bit_map(1, 0)
 {
 }
 
-void Lempel_ziv_algo::compress()
+void Lempel_ziv_algo::compress(const std::string& file_path)
 {
+    auto input_file = binary_io::FileReader(file_path);
+    buffer = input_file.get_buffer();
+
     while (input_file.slide_window())
     {
-        num_bytes_read += input_file.get_num_bytes_read();
+        num_bytes_read = input_file.get_num_bytes_read();
         index_in_buffer = 0;
         hash_map.clear();
 
@@ -41,9 +41,10 @@ void Lempel_ziv_algo::compress()
             }
         }
     }
+
 }
 
-void Lempel_ziv_algo::decompress(std::string& file_path)
+void Lempel_ziv_algo::decompress(const std::string& file_path)
 {
     binary_io::FileWriter output_file(file_path);
 
@@ -55,12 +56,11 @@ void Lempel_ziv_algo::decompress(std::string& file_path)
     // read the coded vec
     while (index_in_coded_vec < coded_vec.size())
     {
-
-        // case 1: the current bit is 0:  the cuurent value in the coded vector is a literal
-        if ((bit_map[index_in_bitmap] & mask) == 0)
+        // case 1: the current bit is 1:  the cuurent value in the coded vector is a literal
+        if ((bit_map[index_in_bitmap] & mask) != 0)
         {
             // write into the buffer the current literal in coded vec
-            buffer[index_in_buffer] = coded_vec[index_in_coded_vec];
+            (*buffer)[index_in_buffer] = coded_vec[index_in_coded_vec];
 
             // update indexs
             index_in_buffer++;
@@ -77,14 +77,16 @@ void Lempel_ziv_algo::decompress(std::string& file_path)
             // TODO safty check did we accedently passed the vec size or the bitmap and so on?
 
             // case 1: the window is all in the past safe to use memcpy and faster
-            if(start_window_index + len_window <= index_in_buffer) memcpy(&buffer[index_in_buffer], &buffer[start_window_index], len_window);
+            if (start_window_index + len_window <= index_in_buffer)
+                memcpy(
+                    buffer->data() + index_in_buffer, buffer->data() + start_window_index, len_window);
 
             // case 2: the window overlap the place we write into therefor we need to copy byte by byte to avoid corruption of the data.
             else
             {
-                for(uint64_t i = 0; i < len_window; i++)
+                for (uint64_t i = 0; i < len_window; i++)
                 {
-                    buffer[index_in_buffer + i] = buffer[start_window_index + i];
+                    (*buffer)[index_in_buffer + i] = (*buffer)[start_window_index + i];
                 }
             }
 
@@ -101,14 +103,33 @@ void Lempel_ziv_algo::decompress(std::string& file_path)
             index_in_bitmap++;
         }
 
-        if (index_in_buffer == buffer.size())
+        if (index_in_buffer == buffer->size())
         {
-           output_file.flush_buffer_to_file(buffer, buffer.size() );
+            output_file.flush_buffer_to_file(buffer, buffer->size());
             index_in_buffer = 0;
         }
     }
 
     output_file.flush_buffer_to_file(buffer, index_in_buffer);
+}
+
+void Lempel_ziv_algo::clear()
+{
+     buffer = nullptr;
+     coded_vec.clear();
+     bit_map.clear();
+     bit_map.push_back(0);
+     bit_map_mask = 1;
+
+    // the hash map
+     hash_map.clear();
+
+    num_bytes_read = 0;
+    index_in_buffer = 0 ;
+
+    start_window_index = 0;
+    len_window = 0;
+    literal = 0;
 }
 
 
@@ -117,9 +138,16 @@ bool Lempel_ziv_algo::find_window()
     // calculate max window size to look for
     uint64_t max_window_size = num_bytes_read - index_in_buffer;
 
+    // if the potential window size is at most 3 it is not worth the compression
+    if(max_window_size < 4)
+    {
+        literal = (*buffer)[index_in_buffer];
+        return false;
+    }
+
     // calculate the hash map for the 4 next bytes in the buffer
     uint32_t next_four_bytes = 0;
-    std::memcpy(&next_four_bytes, &buffer[index_in_buffer], 4);
+    std::memcpy(&next_four_bytes, buffer->data() + index_in_buffer, 4);
 
     // get iterator to the cyclic map of all previous potential matches
     auto iter = hash_map.find(next_four_bytes);
@@ -167,7 +195,7 @@ bool Lempel_ziv_algo::find_window()
 
         // add the new entry hash map cyclic array this current index.
         hash_map[next_four_bytes].add_elem(index_in_buffer);
-        literal = buffer[index_in_buffer];
+        literal = (*buffer)[index_in_buffer];
 
         // return failed to find a window
         return false;
@@ -176,24 +204,35 @@ bool Lempel_ziv_algo::find_window()
 
 uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_start_searching, uint64_t max_window_size)
 {
+    //TODO can optemise the code after the 32 bit compare with XOR compare of 8 byte numbers to avoid branching commands
+    //############# ASSERT DECLERTIONS ###############//
+    // make sure the buffer is not null
+    assert(buffer != nullptr && "Buffer must be initialized before searching");
+    // make sure that index_to_start_searching is actually in the past
+    assert(index_to_start_searching < index_in_buffer && "Search index must be in the past");
+    // 3make sure that we wont overflow the buffer in the code
+    assert(index_in_buffer + max_window_size <= BUFFER_SIZE && "Window check exceeds physical buffer bounds");
+    //############# ASSERT DECLERTIONS ###############//
+
+
     // The current max window we manged to find
     uint64_t max_window_len = 0;
 
     // the current lenght of comparison
-    uint64_t len = 32;
+    size_t len = 32;
 
     // if we have in the future(the unseen buffer) enoght bytes to search (that is len bytes)
     // we will attempt comparint the windows 32 bytes at a time
     if (max_window_size >= 32)
     {
-        while (memcmp(&buffer[index_in_buffer + max_window_len],
-                           &buffer[index_to_start_searching + max_window_len],
-                           len) != 0)
+        while (memcmp(buffer->data() + index_in_buffer + max_window_len,
+                      buffer->data() + index_to_start_searching + max_window_len,
+                      len) == 0)
         {
             max_window_len += 32;
 
             // if the remaining futer bytes are smaller than len we cant compare the next len bytes
-            if (max_window_len - max_window_size < len) break;
+            if (max_window_size - max_window_len < len) break;
         }
     }
 
@@ -203,10 +242,18 @@ uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_sta
     // we keep comparing till the shift oper turns len to 0
     while (len > 0)
     {
-        // if the remaining futer bytes are smaller than len we cant compare the next len bytes
-        if (max_window_len - max_window_size < len) len = len >> 1;
-        if (memcmp(&buffer[index_in_buffer + max_window_len], &buffer[index_to_start_searching + max_window_len],
-                        len) != 0)
+        // if the remaining future bytes are smaller than the len we want to compare to
+        // Then we cant cant compare the next len bytes(since it will compare overflowing the allowed max window)
+        if (max_window_size - max_window_len < len)
+        {
+            len = len >> 1;
+            continue;
+        }
+
+        // else we can do the comparison
+        if (memcmp(buffer->data() + index_in_buffer + max_window_len,
+            buffer->data() + index_to_start_searching + max_window_len,
+            len) == 0)
         {
             max_window_len += len;
         }
@@ -230,7 +277,10 @@ void Lempel_ziv_algo::add_literal_to_vec()
     coded_vec.push_back(literal);
 
     // turn on the current bit in the bitmap
-    bit_map[bit_map.size()] = bit_map[bit_map.size()] & bit_map_mask;
+    bit_map.back() = bit_map.back() | bit_map_mask;
+
+    // TODO maby optemise having a buffer that we write into it the bits and only when it is full we flush
+    // TODO it into the bit_map
 
     bit_map_mask = bit_map_mask << 1;
 
@@ -239,7 +289,7 @@ void Lempel_ziv_algo::add_literal_to_vec()
 
 void Lempel_ziv_algo::update_bit_map()
 {
-    if (bit_map_mask == 1 << 63)
+    if (bit_map_mask == 0)
     {
         bit_map_mask = 1;
         bit_map.push_back(0);

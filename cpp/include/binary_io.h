@@ -11,10 +11,11 @@
 # define BUFFER_SIZE 2<<22 // 4MB
 
 namespace binary_io
-{   /*
-    * This class provides an abstraction to reading from a binary file.
-    * It is designed for the lempel ziv77 algo.
-    */
+{
+    /*
+     * This class provides an abstraction to reading from a binary file.
+     * It is designed for the lempel ziv77 algo.
+     */
     class FileReader
     {
     public:
@@ -35,7 +36,7 @@ namespace binary_io
          * getter of the past window.
          * @return the array that holds the past window of the file
          */
-        std::array<uint8_t,BUFFER_SIZE>& get_buffer();
+        std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> get_buffer();
 
         /**
          * Gets the number of bytes that where writin into the buffer (from index 0 to the returned value).
@@ -46,16 +47,11 @@ namespace binary_io
         ~FileReader();
 
     private:
-        auto buffer = std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
+        std::shared_ptr<std::array<uint8_t, BUFFER_SIZE>> buffer =
+         std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
         uint64_t num_bytes_read = 0;
         std::ifstream file;
     };
-
-
-
-
-
-
 
 
     class FileWriter
@@ -65,14 +61,15 @@ namespace binary_io
          *  The constructor to a file to write into
          * @param file_path the path of the file to write into
          */
-        explicit FileWriter(std::string& file_path);
+        explicit FileWriter(const std::string& file_path);
 
         /**
          *  This method writes 'num_bytes_to_flush' bytes from 'buffer' into the file.
          * @param buffer the buffer to write from into the file
          * @param num_bytes_to_flush the number of bytes to read from the file
          */
-        void flush_buffer_to_file(std::array<uint8_t,BUFFER_SIZE>& buffer, uint64_t num_bytes_to_flush);
+        void flush_buffer_to_file(const std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>>& buffer,
+                                  uint64_t num_bytes_to_flush);
 
         /**
          * Closes the file.
@@ -81,7 +78,6 @@ namespace binary_io
 
     private:
         std::ofstream file;
-
     };
 }
 
