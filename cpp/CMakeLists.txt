@@ -6,10 +6,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 
 
-# The core core compressing library
+# The core compressing library
 add_library(compressor_lib
         src/lempel_ziv_algo.cpp
-        src/binary_io.cpp)
+        src/binary_io.cpp
+        src/huffman_code.cpp)
 
 # Linking compressor_lib to the include folder
 target_include_directories(compressor_lib PUBLIC include)

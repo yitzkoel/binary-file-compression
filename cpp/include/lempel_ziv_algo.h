@@ -87,7 +87,7 @@ private:
     static uint64_t min(uint64_t val1, uint64_t val2);
 
     std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> buffer = nullptr;
-    std::vector<uint64_t> coded_vec;
+    std::vector<uint32_t> coded_vec;
     std::vector<uint64_t> bit_map;
     uint64_t bit_map_mask = 1;
     char LEN_WORD = 64;
