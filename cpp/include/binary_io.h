@@ -26,7 +26,7 @@ namespace binary_io
         explicit FileReader(const std::string& file_name);
 
         /**
-         * slides the window buffer 1MB forward..
+         * slides the window buffer 4MB forward..
          * @return true if there is more to slide and false otherwise.
          */
         bool slide_window();

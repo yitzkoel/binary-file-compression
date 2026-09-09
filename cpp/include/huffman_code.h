@@ -8,29 +8,60 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstring>
+#include <queue>
+#include <bit>
+#include <utility>
+#include <algorithm>
 #include <..\include\binary_io.h>
-
-
-
-
-class BinaryTreeNode
-{
-public:
-    explicit BinaryTreeNode(uint32_t symbol): symbol(symbol)
-    {
-    }
-
-    uint32_t symbol;
-    uint32_t frequency = 0;
-    std::unique_ptr<BinaryTreeNode> right = nullptr;
-    std::unique_ptr<BinaryTreeNode> left = nullptr;
-
-private:
-};
-
 
 using coded_vec = std::vector<uint32_t>;
 using bit_map = std::vector<uint64_t>;
+
+struct HuffmanTreeNode
+{
+    HuffmanTreeNode() = default;
+    // note that it is unsighed and -1 is the largest value (111111111111 in binary)
+    uint32_t frequency = 0;
+    uint16_t left = -1;
+    uint16_t right = -1;
+};
+
+struct HuffmanCode
+{
+    uint8_t len_code;
+    uint16_t huffman_code;
+};
+
+struct windowLengthToCode
+{
+    uint16_t huffman_code; // the binary code
+    uint8_t huffman_len; // the number of bytes in the code
+    uint32_t extra_bits_val;
+    // the value of the len - range (each length is in a range look at constructor implementation to see the ranges
+    uint8_t extra_bits_len; // the number of bits of extra_bits_val
+};
+
+struct DistanceEncodeInfo
+{
+    uint32_t symbol;
+    uint32_t extra_bits_val;
+    uint32_t extra_bits_len;
+};
+
+struct LempelZivBlockCode
+{
+  coded_vec coded_vec;
+    bit_map bit_map;
+    uint32_t num_bytes_compressed_in_block;
+};
+
+struct Decode
+{
+    uint8_t symbol;
+    uint8_t num_bytes;
+};
+
 
 
 /**
@@ -56,19 +87,18 @@ using bit_map = std::vector<uint64_t>;
  *
  * [Block i] (Repeats until End Of File)
  * <uncompressed_size>   -> 3 bytes. The uncompressed size of this specific block (e.g.,4MB is the top limit).
+ * <compressed_size>     -> 3 bytes. The number of bytes used to compress the entire block (not includes this 6 bytes of sizes).
  *
  * <Tree 1 Definition (Literals & Lengths)>
- *      <num_symbols_1>  -> 2 bytes. Number of symbols in the first tree (max 286).
- *      <bit_lengths_1>  -> Array of lengths used to reconstruct the Canonical Huffman tree.
+ *      <bit_lengths_1>  -> Array of 1 byte lengths used to reconstruct the Canonical Huffman tree.
  *                          (Symbol values:
                                              0-255:   Literals,
-                                             256:     EOF_BLOCK,
-                                             257-285: Length Ranges).
+                                             256-284: Length Ranges from ). // TODO add the discription of the ranges
  *
  * <Tree 2 Definition (Distances)>
- *      <num_symbols_2>  -> 2 bytes. Number of symbols in the second tree (e.g., 44 for 4MB window).
  *      <bit_lengths_2>  -> Array of lengths used to reconstruct the Canonical Huffman tree.
  *                          (Symbol values represent Distance Ranges).
+ *                          // TODO add the discription of the ranges
  *
  * <Bitstream (The Encoded LZSS Data)>
  *      The bitstream contains a sequence of encoded elements. For each element:
@@ -114,37 +144,175 @@ using bit_map = std::vector<uint64_t>;
 class Huffman_code
 {
 public:
+    /**
+     * Constructor, it initalizes all the used data structures needed throughout its life.
+     */
     explicit Huffman_code();
 
+    void flush_block(const std::string& string);
+    /**
+     *
+     * This function gets all the data from a lempel zivSS compression, and uses huffman code to compress it into binary
+     * into a file named 'file_path'.
+     *
+     * @param file_path the file path to dump the compressed file into
+     * @param coded_vecs the vector that hold the lempel ziv compression (each vector corespondes to a block of at most 4MB of the file)
+     * @param bit_maps the bit map used to decipher the values in the coded vecs(is it a literal, window len, or distance)
+     * @param num_bytes_in_block_before_compression holds to each vector in coded_vecs the number of bytes in the original file it compresses.
+     * @param original_file_size the number of bytes of the whole file
+     */
     void compress(const std::string& file_path,
                   std::vector<coded_vec>& coded_vecs,
                   std::vector<bit_map>& bit_maps,
+                  std::vector<uint32_t>& num_bytes_in_block_before_compression,
                   std::uint64_t original_file_size);
 
-    void decompress(const std::string& file_path);
+    static std::vector<Decode> get_encription_table(const std::vector<HuffmanCode>& huffman_code);
 
+
+    LempelZivBlockCode decompress_block(binary_io::FileReader& file_reader);
+     std::vector<coded_vec> decompress(const std::string& file_path);
+
+    /**
+     * Rests the data structures that this object holds for a new compression.
+     * It must be called before each compression call IF the object was used before to compress or decompress somthing else.
+     */
     void clear();
 
 private:
-    std::vector<uint16_t> get_code_len_table(const std::shared_ptr<BinaryTreeNode>& tree1, int table_size);
-    std::vector<uint16_t> create_canonial_huffman_code(const std::vector<uint16_t>& vector);
-    void write_tree_dict(const std::vector<uint16_t>& vector);
-    void write_vec_code(const ::coded_vec& codeds, const ::bit_map& vector);
-    void write_EOF();
-    void compress_block(coded_vec& coded_vec, bit_map& bit_map);
-    void write_global_header();
-    std::pair<std::shared_ptr<BinaryTreeNode>,std::shared_ptr<BinaryTreeNode>>
-    get_trees_from_vecs(coded_vec, bit_map);
+    static void fill_table_windowLengthToCode(const std::vector<HuffmanCode>& canonial_code);
+
+    /**
+      * this function codes into binary the the coded vec into a block and writes it into the file.
+      * @param coded_vec the coded vec of this block
+      * @param bit_map the bit map used to decipher the coded vec
+      * @param num_bytes_compressed_in_block the number of bytes of the original uncompressed file this block compresses
+      */
+    void compress_block(coded_vec& coded_vec, bit_map& bit_map, uint32_t num_bytes_compressed_in_block);
 
 
-    std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> buffer =
-        std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
+    //#################### FUNCTION TO WRITE INTO THE FILE #####################
+    /**
+     * writes into the first 8 bytes of the coded file the uncompressed file size.
+     * @param original_file_size the uncompressed file
+     */
+    void write_global_header(std::uint64_t original_file_size);
 
-    std::shared_ptr<std::vector<uint32_t>> coded_vec;
-    std::shared_ptr<std::vector<uint64_t>> bit_map;
+    /**
+     * This function writes into the buffer the header to a block.
+     * @param num_bytes_compressed_in_block the number of bytes this block compresses.
+     */
+    void write_block_header(uint32_t num_bytes_compressed_in_block);
 
-static const int TREE1_CODE_LENGTH_TABLE_SIZE = 286;
-static const int TREE2_CODE_LENGTH_TABLE_SIZE = 44;
+    void write_number_of_compressed_bytes(uint32_t number_of_compressed_bytes);
+
+    void write_code_into_buffer(uint16_t code_len, uint64_t huffman_code);
+
+    /**
+     * This function writes into the buffer the length of each huffman code.
+     * It writes it as an array of 8 bytes since the huffman code is limited by 15 bits length.
+     * @param tree_code_length_table this vector holds to each symbol(the index) the len of the huffman code to that symbol
+     */
+    void write_tree_dict(std::vector<uint16_t>& tree_code_length_table);
+
+    /**
+     * this function codes a vector that was coded using lempel ziv into binary code using huffman code
+     * @param coded_vec the coded vec to code into binary.
+     * @param bit_map  the bit map used to decipher what the value in the coded vec is (which huffman code to use)
+     * @param canonial_code_1 the huffman code to use to literals and window lengths
+     * @param canonial_code_2 the huffman code to use for distances
+     *
+     * @return the number of bytes needed to compress this vec
+     */
+    void write_vec_code(const ::coded_vec& coded_vec, const ::bit_map& bit_map,
+                        std::vector<HuffmanCode>& canonial_code_1
+                        , std::vector<HuffmanCode>& canonial_code_2);
+
+    /**
+        * write the EOF symbol into the file
+        */
+    void write_EOF(std::vector<HuffmanCode>& canonial_code_1);
+
+    //#################### FUNCTION TO WRITE INTO THE FILE #####################
+
+
+    //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
+    /**
+     * This function creates the huffman trees from the coded vec.
+     * The last index of the vector holds the root of the tree.
+     *
+     * @return two huffman trees, ONE: codes the literal and window lengths of in the vec, TWO: codes the distances
+     */
+    static std::pair<std::vector<HuffmanTreeNode>, std::vector<HuffmanTreeNode>> get_huffman_trees_from_vecs(
+        ::coded_vec& coded_vec, ::bit_map& bit_map);
+
+    /**
+     *
+     * @param tree the symbols(that are already saved as leaves) with thies frequency to copute the tree
+     * @param num_symbols the number of symbols this huffman tree codes
+     */
+    static void create_huffman_tree(std::vector<HuffmanTreeNode>& tree, int num_symbols);
+
+    /**
+     * This function gets a huffman tree and computes the code length of each symbol.
+     *
+     * @param tree a complete huffman tree (the leaves are the first table_size values)
+     * @param table_size the number of symbols the the tree coded
+     * @return a vector that maps each symbol (the index in the vector) to it's code length acording to this huffman tree
+     */
+    static std::vector<uint16_t> get_code_len_table(std::vector<HuffmanTreeNode>& tree, uint32_t table_size);
+
+    /**
+     * This function takes a code_len_table and converts it to a huffman canonial code table (symbol)->(len_of_huffman_code, huffman_code).
+     * @param code_len_table vector that maps each symbol (the index in the vector) to it's code length that maintains the craft inequality
+     * @return a maping from a symbol(the index of the table) to (len_of_huffman_code, huffman_code).
+     */
+    static std::vector<HuffmanCode> create_canonial_huffman_code(
+        const std::vector<uint16_t>& code_len_table);
+
+    static void fill_leaf_nodes(std::vector<HuffmanTreeNode> tree1);
+
+
+    static void add_frequency_to_symbols(coded_vec& coded_vec, bit_map& bit_map, std::vector<HuffmanTreeNode> tree1,
+                                         std::vector<HuffmanTreeNode> tree2);
+
+    //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
+
+
+    //############## DATA STRUCTURES METHODS ################
+    static uint16_t get_symbol_from_range_for_tree_1(uint32_t val);
+    static DistanceEncodeInfo get_symbol_from_range_for_tree_2(uint32_t val);
+
+
+    //############## DATA STRUCTURES METHODS ################
+
+
+    //#################### FIELDS ###################
+    // this buffer hold the coded data before being flushed from ro to the actual file.
+    std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> buffer = std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
+    uint32_t index_in_buffer = 0; // index of the above buffer
+    uint32_t num_bytes_read_in_buffer;
+
+    // a 8 byte buffer for the buffer above and a bit index in the eight_bytes_buffer
+    uint64_t eight_bytes_buffer = 0;
+    uint8_t index_in_byte_buffer = 0;
+    uint64_t first_15_bytes_mask = 0b111111111111111;
+
+
+    // number of symbols in each huffman tree
+    static const int TREE1_NUM_SYMBOLS = 285;
+    static const int TREE2_NUM_SYMBOLS = 56;
+
+    // maps from symbol of the huffman code to the range of number it represents
+    static std::array<uint32_t, TREE1_NUM_SYMBOLS> tree1_symbolToRange_table;
+    static std::array<uint32_t, TREE2_NUM_SYMBOLS> tree2_symbolToRange_table;
+
+    static std::array<windowLengthToCode, 2069> windowLengthToCode;
+
+    static std::array<uint8_t, TREE1_NUM_SYMBOLS - 256> symbol_to_num_extra_bits_map1;
+    static std::array<uint8_t, TREE2_NUM_SYMBOLS> symbol_to_num_extra_bits_map2;
+
+    //#################### FIELDS ###################
 };
 
 #endif //HUFFMAN_CODE_H

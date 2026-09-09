@@ -70,7 +70,7 @@ void Lempel_ziv_algo::decompress(const std::string& file_path)
         else
         {
             // read the next two values in the coded vec that code the start index of the window and the window length
-            start_window_index = coded_vec[index_in_coded_vec];
+            start_window_index = index_in_buffer - coded_vec[index_in_coded_vec];
             index_in_coded_vec++;
             len_window = coded_vec[index_in_coded_vec];
             index_in_coded_vec++;
@@ -265,7 +265,7 @@ uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_sta
 
 void Lempel_ziv_algo::add_window_to_vec()
 {
-    coded_vec.push_back(start_window_index);
+    coded_vec.push_back(index_in_buffer - start_window_index);
     coded_vec.push_back(len_window);
     bit_map_mask = bit_map_mask << 1;
 
