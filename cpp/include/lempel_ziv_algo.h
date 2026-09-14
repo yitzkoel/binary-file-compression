@@ -34,8 +34,6 @@ struct cyclicArray
 
 class Lempel_ziv_algo {
 public:
-    explicit Lempel_ziv_algo();
-
     void compress(const std::string& file_path);
 
     void decompress(const std::string& file_path);
@@ -62,34 +60,9 @@ private:
      */
     bool find_window();
 
-    /**
-     * Adds the fields 'start_window_index', 'len_window'  to the back of the vector(in that order)
-     */
-    void add_window_to_vec();
-
-    /**
-     * Adds the field 'literal' to the back of the vector
-     */
-    void add_literal_to_vec();
-
-    /**
-     * Resets the field bit_map_mask and adds a new elemnt to the bitmap
-     */
-    void update_bit_map();
-
-
-    /**
-     * Returns the minimum value of 2 POSITIVE 64 bit integers.
-     * @param val1 a positive integer
-     * @param val2 a positive integer
-     * @return The minimum value of val1, val2
-     */
-    static uint64_t min(uint64_t val1, uint64_t val2);
 
     std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> buffer = nullptr;
     std::vector<uint32_t> coded_vec;
-    std::vector<uint64_t> bit_map;
-    uint64_t bit_map_mask = 1;
     char LEN_WORD = 64;
 
     // the hash map
@@ -100,8 +73,11 @@ private:
     uint64_t index_in_buffer = 0 ;
 
     uint64_t start_window_index = 0;
-    uint64_t len_window = 0;
+    uint16_t len_window = 0;
     uint64_t literal = 0;
+
+    static const uint64_t MAX_WINDOW_SIZE = (2<<11)+ 22;
+    static const uint16_t WINDOW_OFFSET = 256;
 
     friend class LempelZivTest;
 };
@@ -120,14 +96,5 @@ private:
 // TODO (Performance - CPU Instructions): Optimize 'find_max_window_from_given_index()'.
 // Replace the while-loop byte-comparison with a 64-bit XOR operation and '__builtin_ctzll' (count trailing zeros).
 // This allows finding the exact match length in 3 CPU instructions without branching.
-
-
-// ==========================================
-// TODO: ARCHITECTURE & LOGIC
-// ==========================================
-
-// TODO (Architecture - Bitmap Flushing): Consider optimizing the bitmap literal writing.
-// Instead of turning on bits one by one using '.back()', accumulate bits in a local 64-bit register
-// and only flush (push_back) to 'bit_map' when the register is full.
 
 #endif //LEMPEL_ZIV_ALGO_H

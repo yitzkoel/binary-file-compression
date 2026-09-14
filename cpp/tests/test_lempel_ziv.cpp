@@ -33,39 +33,26 @@ protected:
 
     void add_window_to_vec()
     {
-        compressor.add_window_to_vec();
+        compressor.coded_vec.push_back((compressor.len_window));
+        compressor.coded_vec.push_back((compressor.start_window_index));
     }
 
     void add_literal_to_vec()
     {
-        compressor.add_literal_to_vec();
+        compressor.coded_vec.push_back(compressor.literal);
     }
 
-    std::vector<uint64_t>& get_coded_vec()
+    std::vector<uint32_t>& get_coded_vec()
     {
         return compressor.coded_vec;
     }
 
-    std::vector<uint64_t>& get_bit_map()
-    {
-        return compressor.bit_map;
-    }
 
-    void set_coded_vec(std::vector<uint64_t>& coded_vec)
+    void set_coded_vec(std::vector<uint32_t>& coded_vec)
     {
         compressor.coded_vec = std::move(coded_vec);
     }
 
-    void set_bit_map(std::vector<uint64_t>& bit_map)
-    {
-        compressor.bit_map = std::move(bit_map);
-    }
-
-
-    static uint64_t get_min(uint64_t val1, uint64_t val2)
-    {
-        return Lempel_ziv_algo::min(val1, val2);
-    }
 
     static void create_input_file(const std::string& content, const std::string& file_path)
     {
@@ -154,17 +141,6 @@ TEST_F(LempelZivTest, AddingToCodedVec)
     coded_vec.pop_back();
     EXPECT_EQ(coded_vec.back(), 50);
     coded_vec.pop_back();
-}
-
-TEST_F(LempelZivTest, TestMin)
-{
-    EXPECT_EQ(get_min(1,0), 0);
-    EXPECT_EQ(get_min(0,1), 0);
-    EXPECT_EQ(get_min(0,0), 0);
-    EXPECT_EQ(get_min(100000, 1ULL << 63), 100000);
-
-    // testing the largest 64 number with the smallest
-    EXPECT_EQ(get_min(0, -1), 0);
 }
 
 TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
@@ -436,7 +412,6 @@ TEST_F(LempelZivTest, TestBasicCompression)
         'a', 'a', 'b', 0, 5, 'c', 'd', 8, 4, 'd', 'a', 'b', 'c', 'e',
         15, 4, 'd', 3, 6, 'f', 'g'
     };
-    std::vector<uint64_t> expected_bit_map = {0b11010111110110111};
 
     std::string file_path = "basicCompressionTest.bin";
 
@@ -450,28 +425,20 @@ TEST_F(LempelZivTest, TestBasicCompression)
     compressor.compress(file_path);
 
     auto& res_coded_vec = get_coded_vec();
-    auto& res_bit_map = get_bit_map();
 
     EXPECT_EQ(expected_coded_vec.size(), res_coded_vec.size());
     for (int i = 0; i < expected_coded_vec.size(); i++)
     {
         EXPECT_EQ(expected_coded_vec[i], res_coded_vec[i]);
     }
-
-    EXPECT_EQ(expected_bit_map.size(), res_bit_map.size());
-    for (int i = 0; i < res_bit_map.size(); i++)
-    {
-        EXPECT_EQ(expected_bit_map[i], res_bit_map[i]);
-    }
 }
 
 TEST_F(LempelZivTest, TestBasicDecompression)
 {
-    std::vector<uint64_t> coded_vec = {
+    std::vector<uint32_t> coded_vec = {
         'a', 'a', 'b', 0, 5, 'c', 'd', 8, 4, 'd', 'a', 'b', 'c', 'e',
         15, 4, 'd', 3, 6, 'f', 'g'
     };
-    std::vector<uint64_t> bit_map = {0b11010111110110111};
 
     std::vector<uint8_t> expected_data =
     {
@@ -481,7 +448,6 @@ TEST_F(LempelZivTest, TestBasicDecompression)
 
 
     set_coded_vec(coded_vec);
-    set_bit_map(bit_map);
 
     std::string file_path = "basicDecompressionTest.bin";
     compressor.decompress(file_path);

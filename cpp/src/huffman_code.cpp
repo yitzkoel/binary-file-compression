@@ -3,7 +3,8 @@
 //
 
 #include "../include/huffman_code.h"
-// TODO implement DEFLATE algorithm
+
+// TODO implemetnt securaty mesures for example prevent ZIP bomb
 
 Huffman_code::Huffman_code()
 {
@@ -64,20 +65,16 @@ Huffman_code::Huffman_code()
     // TODO fill in the fields of the tables num_extra_bytes
 }
 
-void Huffman_code::flush_block(const std::string& string)
-{
-}
-
 void Huffman_code::compress(const std::string& file_path,
                             std::vector<::coded_vec>& coded_vecs,
-                            std::vector<::bit_map>& bit_maps,
                             std::vector<uint32_t>& num_bytes_in_block_before_compression,
                             std::uint64_t original_file_size)
 {
-    // init thr file_writer
+    // init the file_writer
     binary_io::FileWriter file_writer(file_path);
-    // reset the buffer the buffer
-    index_in_buffer = 0;
+    // reset the buffer
+    buffer_iter = buffer->data();
+    offset = 0;
 
     // initalize the file
     write_global_header(original_file_size);
@@ -85,156 +82,47 @@ void Huffman_code::compress(const std::string& file_path,
     // compress the data
     for (int i = 0; i < coded_vecs.size(); i++)
     {
-        compress_block(coded_vecs[i], bit_maps[i], num_bytes_in_block_before_compression[i]);
+        compress_block(coded_vecs[i], num_bytes_in_block_before_compression[i]);
 
-
-        file_writer.flush_buffer_to_file(buffer, index_in_buffer);
-        index_in_buffer = 0;
+        // flush the block onto the file and clear the buffer
+        file_writer.flush_buffer_to_file(buffer, (buffer_iter - buffer->data()) / sizeof(*buffer_iter));
+        buffer_iter = buffer->data();
+        offset = 0;
     }
 }
-
-std::vector<Decode> Huffman_code::get_encription_table(const std::vector<HuffmanCode>& huffman_code)
-{
-    std::vector<Decode> encription_table(2 << 15);
-
-    // for each symbol fill in all the indexes that start with the value of the huffman code with the symbol and lenght
-    // of huffman code
-    for (int i = 0; i < huffman_code.size(); i++)
-    {
-        uint16_t offset = 1 << huffman_code[i].len_code;
-        uint16_t num_iterations = 2 << (15 - huffman_code[i].len_code);
-        uint16_t index_in_table = huffman_code[i].huffman_code;
-        for (int j = 0; j < num_iterations; j++)
-        {
-            encription_table[index_in_table].symbol = i;
-            encription_table[index_in_table].num_bytes = huffman_code[i].len_code;
-
-            index_in_table += offset;
-        };
-    }
-
-    return encription_table;
-}
-
 
 std::vector<coded_vec> Huffman_code::decompress(const std::string& file_path)
 {
     std::vector<coded_vec> coded_vecs;
-    std::vector<::bit_map> bit_maps;
     std::vector<uint32_t> num_bytes_compressed_in_blocks;
 
-
+    // the file that the compressed data is in.
     binary_io::FileReader file_reader(file_path);
+
+    // read from the file the first 4MB(or less if the file is smaller
     file_reader.slide_window();
 
-
+    // get the data and save a pointer to it for easier handel
     buffer = file_reader.get_buffer();
-    index_in_buffer = 0;
+    buffer_iter = buffer->data();
+    offset = 0;
     num_bytes_read_in_buffer = file_reader.get_num_bytes_read();
 
-
-    uint64_t original_file_size;
-    memcpy(&original_file_size, buffer->data(), 8);
-    index_in_buffer++;
+    // first 8 bytes hold the original file size
+    uint64_t original_file_size = *((uint64_t*)buffer_iter);
+    buffer_iter += 8;
 
     uint64_t current_original_file_bytes_read = 0;
+    // this var tracks the number of bytes in the original file we uncompressed so far
     while (current_original_file_bytes_read < original_file_size)
     {
         LempelZivBlockCode lempelZiv_block_code = decompress_block(file_reader);
         current_original_file_bytes_read += lempelZiv_block_code.num_bytes_compressed_in_block;
-    }
 
+        coded_vecs.push_back(lempelZiv_block_code.coded_vec);
+    }
 
     return coded_vecs;
-}
-
-LempelZivBlockCode Huffman_code::decompress_block(binary_io::FileReader& file_reader)
-{
-    LempelZivBlockCode block_code;
-
-    // write the number of uncompressed bytes
-    memcpy(&block_code.num_bytes_compressed_in_block, buffer->data() + index_in_buffer, 3);
-    index_in_buffer += 3;
-
-    // write the number of bytes the whole block takes
-    uint32_t compressed_size; // number of bytes in the compressed block
-    memcpy(&compressed_size, buffer->data() + index_in_buffer, 3);
-    index_in_buffer += 3;
-
-    // get the code lengths of each symbol and put it in a table
-    std::vector<uint16_t> tree1_code_length_table = extract_len_table_for_huffman_code();
-    std::vector<uint16_t> tree2_code_length_table = extract_len_table_for_huffman_code();
-
-    // get the canonial code for each tree
-    // map from symbol( the index of the vector to (len,binary_code)
-    std::vector<HuffmanCode> canonial_code_1 = create_canonial_huffman_code(tree1_code_length_table);
-    std::vector<HuffmanCode> canonial_code_2 = create_canonial_huffman_code(tree2_code_length_table);
-
-    std::vector<Decode> encryption_bytes_to_symbol_1 = get_encription_table(canonial_code_1);
-    std::vector<Decode> encryption_bytes_to_symbol_2 = get_encription_table(canonial_code_2);
-
-
-    // TODO should i release unused resources
-    uint32_t index_in_block = 0;
-    index_in_buffer = 64;
-
-
-    while (index_in_block < compressed_size)
-    {
-        // dealing with updating the buffers
-        uint32_t num_bytes_deciphered_from_buffer = index_in_buffer - 8 + (index_in_byte_buffer % 8);
-        if (num_bytes_deciphered_from_buffer >= num_bytes_read_in_buffer - 8)
-        {
-            // move remaining buffer into eight_bytes_buffer
-            eight_bytes_buffer = eight_bytes_buffer >> index_in_byte_buffer;
-
-            uint64_t remaining_bytes;
-            memcpy(&remaining_bytes, buffer->data() + index_in_buffer, num_bytes_read_in_buffer - index_in_buffer);
-
-            remaining_bytes = remaining_bytes << index_in_byte_buffer;
-
-            eight_bytes_buffer = eight_bytes_buffer | remaining_bytes;
-            index_in_byte_buffer = 0;
-
-            file_reader.slide_window();
-            buffer = file_reader.get_buffer();
-            index_in_buffer = 0;
-            num_bytes_read_in_buffer = file_reader.get_num_bytes_read();
-        }
-
-        // TODO update  eight_bytes_buffer
-
-         uint64_t code = eight_bytes_buffer >> index_in_byte_buffer;
-         code = code & first_15_bytes_mask;
-        index_in_byte_buffer += encryption_bytes_to_symbol_1[code].num_bytes;
-
-
-
-        // we encoded a window length
-        if(encryption_bytes_to_symbol_1[code].symbol >= 256)
-        {
-          uint64_t extra_val  = eight_bytes_buffer >> index_in_buffer;
-            extra_val = extra_val & (1u << symbol_to_num_extra_bits_map1[encryption_bytes_to_symbol_1[code].symbol]) -1;
-            block_code.coded_vec.push_back(tree1_symbolToRange_table[encryption_bytes_to_symbol_1[code].symbol] + extra_val);
-
-            index_in_byte_buffer += symbol_to_num_extra_bits_map1[encryption_bytes_to_symbol_1[code].symbol];
-
-            // we encode a
-
-        }
-
-        else
-        {
-            block_code.coded_vec.push_back(encryption_bytes_to_symbol_1[code].symbol);
-        }
-
-
-
-
-    }
-
-
-    return block_code;
 }
 
 void Huffman_code::clear()
@@ -242,24 +130,203 @@ void Huffman_code::clear()
 }
 
 
-void Huffman_code::compress_block(::coded_vec& coded_vec, ::bit_map& bit_map,
-                                  uint32_t num_bytes_in_block_before_compression)
+uint32_t Huffman_code::peak_bits_from_buffer(uint8_t count)
 {
-    // write the bolcj header int the buffer
+    uint64_t window = *(uint64_t*)buffer_iter; // get a window of size 64 bytes from the
+
+    window = window >> offset;
+
+    return window & ((1U << count) - 1);
+}
+
+void Huffman_code::decode_window_length(LempelZivBlockCode& block_code, uint8_t symbol)
+{
+    uint32_t extra_val = peak_bits_from_buffer(symbol_to_num_extra_bits_map1[symbol]);
+    advance_buffer(symbol_to_num_extra_bits_map1[symbol]);
+    uint32_t val = extra_val + tree1_symbolToRange_table[symbol];
+
+    block_code.coded_vec.push_back(val);
+}
+
+void Huffman_code::decode_distance(LempelZivBlockCode& block_code, uint8_t symbol)
+{
+    uint32_t extra_val = peak_bits_from_buffer(symbol_to_num_extra_bits_map2[symbol]);
+    advance_buffer(symbol_to_num_extra_bits_map2[symbol]);
+    uint32_t val = extra_val + tree2_symbolToRange_table[symbol];
+
+    block_code.coded_vec.push_back(val);
+}
+
+LempelZivBlockCode Huffman_code::decompress_block(binary_io::FileReader& file_reader)
+{
+    // TODO do i need the whole block code? not only the coded vectors?
+    LempelZivBlockCode block_code;
+
+    // write the number of uncompressed bytes this block encodes
+    memcpy(&block_code.num_bytes_compressed_in_block, buffer_iter, 3);
+    buffer_iter += 3;
+
+    // write the number of bytes the trees encoding and huffman code of the vector takes
+    uint32_t compressed_size;
+    memcpy(&compressed_size, buffer_iter, 3);
+    buffer_iter += 3;
+
+    // create maps that map from 15 bits to the symbol that it's huffman code start with those 15 bits
+    std::vector<Decode> encryption_fifteen_bits_to_symbol_1 = get_encription_table(TREE1_NUM_SYMBOLS);
+    std::vector<Decode> encryption_fifteen_bits_to_symbol_2 = get_encription_table(TREE2_NUM_SYMBOLS);
+
+
+    // TODO should i release unused resources?
+
+
+    uint32_t index_in_block = 0; // current byte in the compressed block
+
+    // a pointer to the end of the buffer ment to prevent overflowed reading or reading unread bytes
+    // it indicates when we need to read more data from the file into the buffer
+    uint8_t* safe_end = buffer->data() + num_bytes_read_in_buffer - 8;
+
+    while (index_in_block < compressed_size)
+    {
+        // if we have reached the end of the buffer we need to load more bytes from the file into it
+        if (safe_end < buffer_iter)
+        {
+            read_data_into_buffer(file_reader, safe_end);
+        }
+
+        // get index in buffer previos to reading from it to calculate the number of bytes read
+        uint32_t pre_index_in_buffer = (buffer->data() - buffer_iter) / (sizeof(*buffer->data()));
+
+        // get the next 15 bits in the buffer
+        uint16_t next_chunk = peak_bits_from_buffer(15);
+        advance_buffer(encryption_fifteen_bits_to_symbol_1[next_chunk].num_bits);
+        uint8_t symbol = encryption_fifteen_bits_to_symbol_1[next_chunk].symbol;
+
+        if (symbol < 256)
+        {
+            block_code.coded_vec.push_back(symbol);
+        }
+
+        else
+        {
+            // we decode window lenght
+            decode_window_length(block_code, symbol);
+
+            // next we encode distance
+            next_chunk = peak_bits_from_buffer(15);
+            advance_buffer(encryption_fifteen_bits_to_symbol_2[next_chunk].num_bits);
+            symbol = encryption_fifteen_bits_to_symbol_2[next_chunk].symbol;
+
+            decode_distance(block_code, symbol);
+        }
+
+        // get index in buffer after reading from it
+        uint32_t post_index_in_buffer = (buffer->data() - buffer_iter) / (sizeof(*buffer->data()));
+
+        // update the index in the block
+        index_in_block += (post_index_in_buffer - pre_index_in_buffer);
+    }
+
+
+    return block_code;
+}
+
+std::vector<uint16_t> Huffman_code::extract_len_table_for_huffman_code(size_t num_symbols)
+{
+    // the vector to put the lengths in
+    std::vector<uint16_t> code_len_table;
+
+    // iterate to fill the vector with the code lengths
+    for (size_t i = 0; i < num_symbols; i++, buffer_iter++)
+    {
+        code_len_table.push_back(*buffer_iter);
+    }
+
+    return code_len_table;
+}
+
+std::vector<Decode> Huffman_code::get_encription_table(const int num_symbols)
+{
+    // get the code lengths of each symbol and put it in a table
+    std::vector<uint16_t> tree_code_length_table = extract_len_table_for_huffman_code(num_symbols);
+
+    // get the canonial code for each tree
+    // map from symbol(index of the vector) to (len,binary_code)
+    std::vector<HuffmanCode> canonial_code = create_canonial_huffman_code(tree_code_length_table);
+
+
+    std::vector<Decode> encription_table(2 << 15);
+
+    // for each symbol fill in all the indexes that start with the value of the huffman code with the symbol and length
+    // of that symbol's huffman code
+    for (int i = 0; i < canonial_code.size(); i++)
+    {
+        // the offset between each index of the table with the binary prefix of huffman_code[i].huffman_code
+        // for example suppose the huffman code 011 so the next value that strats with 011 is 1011 which is 1000 + 011.
+        uint16_t offset = 1 << canonial_code[i].len_code;
+
+        // the number of values in the encription_table with the prefix huffman_code[i].huffman_code
+        uint16_t num_iterations = 2 << (15 - canonial_code[i].len_code);
+
+        // the first index in the table we start at is the binary value of huffman_code[i].huffman_code
+        // for example for the code 11000 then we will start at 000000000011000 index in encription_table
+        uint16_t index_in_table = canonial_code[i].huffman_code;
+
+        // filling encription_table indexes that start with prefix  huffman_code[i].huffman_code
+        for (int j = 0; j < num_iterations; j++, index_in_table += offset)
+        {
+            encription_table[index_in_table].symbol = i;
+            encription_table[index_in_table].num_bits = canonial_code[i].len_code;
+        }
+    }
+
+    return encription_table;
+}
+
+void Huffman_code::read_data_into_buffer(binary_io::FileReader& file_reader, uint8_t*& safe_end)
+{
+    // copy the last 8 bytes to the front of the buffer
+    memcpy(buffer->data(), safe_end, 8);
+
+    // have buffer iter point to the first byte in buffer with data that was not yet consumed
+    // TODO maby change 'safe_end' to 'num_bytes_read_in_buffer' field and then this function is more general
+    buffer_iter = buffer->data() + (buffer_iter - safe_end);
+
+    // fill in the buffer to the max from the first 8 bytes and update the fields
+    file_reader.read_bytes(buffer->data() + 8, BUFFER_SIZE - 8);
+    num_bytes_read_in_buffer = file_reader.get_num_bytes_read();
+    safe_end = buffer->data() + +num_bytes_read_in_buffer - 8;
+}
+
+
+void Huffman_code::advance_buffer(uint8_t num_bits)
+{
+    offset += num_bits;
+    buffer_iter += offset >> 3; // devide offset by 8 and add to the iter.
+    offset = offset &= 7; // modolo 8
+}
+
+
+void Huffman_code::compress_block(::coded_vec& coded_vec, uint32_t num_bytes_in_block_before_compression)
+{
+    // write the bolck header into the buffer
     write_block_header(num_bytes_in_block_before_compression);
 
     // advance the buffer count to reserve space to the number of bytes the copressed vector took
-    index_in_buffer += 3;
+    uint8_t* compressed_size_iter = buffer_iter;
+    buffer_iter += 3;
+
 
     // get the huffman trees
-    std::pair<std::vector<HuffmanTreeNode>, std::vector<HuffmanTreeNode>> trees =
-        get_huffman_trees_from_vecs(coded_vec, bit_map);
+    std::pair<huffmanTree, huffmanTree> trees = get_huffman_trees_from_vecs(coded_vec);
     std::vector<HuffmanTreeNode> tree1 = trees.first;
     std::vector<HuffmanTreeNode> tree2 = trees.second;
 
     // calculate the code lengths of each symbol and put it in a table
     std::vector<uint16_t> tree1_code_length_table = get_code_len_table(tree1, TREE1_NUM_SYMBOLS);
     std::vector<uint16_t> tree2_code_length_table = get_code_len_table(tree2, TREE2_NUM_SYMBOLS);
+
+    deflate_code_length(tree1_code_length_table);
+    deflate_code_length(tree2_code_length_table);
 
     // TODO should i release unused resources like the tree1_code_length_table  and tree1?
 
@@ -279,82 +346,71 @@ void Huffman_code::compress_block(::coded_vec& coded_vec, ::bit_map& bit_map,
 
 
     // code the coded_vec into the buffer and from there flushed to the file
-    write_vec_code(coded_vec, bit_map, canonial_code_1, canonial_code_2);
+    write_vec_code(coded_vec, canonial_code_1, canonial_code_2);
 
     // write the number of compressed bytes that vector took
-    write_number_of_compressed_bytes(index_in_buffer - 6);
+    int num_bytes_used = (buffer_iter - buffer->data()) / sizeof(*buffer_iter);
+    memcpy(compressed_size_iter, (const char*)(&num_bytes_used), 3);
 }
 
 void Huffman_code::write_global_header(std::uint64_t original_file_size)
 {
-    // copy the suze of the file to the begining of the buffer
-    memcpy(buffer->data(), &original_file_size, 8);
-    index_in_buffer += 8;
+    // copy the size of the file to the begining of the buffer
+    memcpy(buffer_iter, &original_file_size, 8);
+    buffer_iter += 8;
 }
 
 void Huffman_code::write_tree_dict(std::vector<uint16_t>& tree_code_length_table)
 {
-    for (int i = 0; i < tree_code_length_table.size(); i++, index_in_buffer++)
+    for (int i = 0; i < tree_code_length_table.size(); i++, buffer_iter++)
     {
-        (*buffer)[index_in_buffer] = tree_code_length_table[i];
+        *buffer_iter = tree_code_length_table[i];
     }
 }
 
 
 void Huffman_code::write_block_header(uint32_t num_bytes_compressed_in_block)
 {
-    memcpy(buffer->data() + index_in_buffer, &num_bytes_compressed_in_block, 3);
-    index_in_buffer += 3;
-}
-
-void Huffman_code::write_number_of_compressed_bytes(uint32_t number_of_compressed_bytes)
-{
-    memcpy(buffer->data() + 3, &number_of_compressed_bytes, 3);
+    memcpy(buffer_iter, &num_bytes_compressed_in_block, 3);
+    buffer_iter += 3;
 }
 
 
-void Huffman_code::write_vec_code(const ::coded_vec& coded_vec, const ::bit_map& bit_map,
+void Huffman_code::write_vec_code(const ::coded_vec& coded_vec,
                                   std::vector<HuffmanCode>& canonial_code_1,
                                   std::vector<HuffmanCode>& canonial_code_2)
 {
-    // setting up the bitmap indexes and current buffer
-    uint32_t bit_map_index = 0;
-    uint64_t bit_mask = 1;
-    uint64_t cur_bit_map = bit_map[bit_map_index];
-
-    // init the buffer's buffer
-    eight_bytes_buffer = 0;
-    index_in_byte_buffer = 0;
+    // code the vector
     for (uint32_t i = 0; i < coded_vec.size(); i++)
     {
-        if (bit_mask == 0)
-        {
-            bit_mask = 1;
-            bit_map_index++;
-            cur_bit_map = bit_map[bit_map_index];
-        }
+        // the next value in the vector
         uint32_t val = coded_vec[i];
-        // val is a literal
-        if ((cur_bit_map & bit_mask) == 0)
+
+        // if val is a literal
+        if (val <= 255)
         {
             // getting the len and code of the huffman code of 'val'
             uint16_t code_len = canonial_code_1[val].len_code;
             uint64_t huffman_code = canonial_code_1[val].huffman_code;
             write_code_into_buffer(code_len, huffman_code);
         }
-        // val is a window len
+
+        // else val is a window len
         else
         {
             // write the code for window len into the buffer
-            write_code_into_buffer(windowLengthToCode[val].huffman_len, windowLengthToCode[val].huffman_code);
-            write_code_into_buffer(windowLengthToCode[val].extra_bits_len, windowLengthToCode[val].extra_bits_val);
+            uint32_t window_symbol = val - WINDOW_OFFSET;
+            write_code_into_buffer(windowLengthToCode[window_symbol].huffman_len,
+                                   windowLengthToCode[window_symbol].huffman_code);
+            write_code_into_buffer(windowLengthToCode[window_symbol].extra_bits_len,
+                                   windowLengthToCode[window_symbol].extra_bits_val);
 
             // write the code for 'Distance' into the buffer
 
-            // get the next val
+            // get the next val which is distance
             val = coded_vec[++i];
 
-            // get the distance info (that is the symbol in the tree, the extra bits, and the len of the diffarance
+            // get the distance info (the symbol in the tree, the extra bits, and the len of the diffarance
             DistanceEncodeInfo dist_info = get_symbol_from_range_for_tree_2(val);
             uint16_t huffman_code = canonial_code_2[dist_info.symbol].huffman_code;
             uint8_t code_len = canonial_code_2[dist_info.symbol].len_code;
@@ -363,94 +419,36 @@ void Huffman_code::write_vec_code(const ::coded_vec& coded_vec, const ::bit_map&
             write_code_into_buffer(code_len, huffman_code);
             write_code_into_buffer(dist_info.extra_bits_len, dist_info.extra_bits_val);
         }
-        bit_mask = bit_mask << 1;
     }
 }
 
 
 void Huffman_code::write_code_into_buffer(uint16_t code_len, uint64_t huffman_code)
 {
-    uint8_t num_bits_left_in_byte_buffer = 64 - index_in_byte_buffer;
+    uint32_t window = 0;
 
-    // writing into the space that is left in the buffer the code
-    uint64_t write_1 = huffman_code << index_in_byte_buffer;
-    eight_bytes_buffer = eight_bytes_buffer | write_1;
+    memcpy(&window, buffer_iter, 4);
 
-    uint8_t num_bits_read = std::min<uint16_t>(code_len, num_bits_left_in_byte_buffer);
-    index_in_byte_buffer += num_bits_read;
+    window &= (1ULL << offset) - 1;
 
-    // flushing the eight_bytes_buffer into the file buffer
-    if (index_in_byte_buffer == 64)
-    {
-        memcpy(buffer->data() + index_in_buffer, &eight_bytes_buffer, 8);
-        index_in_buffer += 8;
-        index_in_byte_buffer = 0;
-        eight_bytes_buffer = 0;
-    }
-    // writing what is left of the code into the buffer
-    uint64_t write_2 = huffman_code >> num_bits_read;
-    eight_bytes_buffer = eight_bytes_buffer | write_2;
+    huffman_code = huffman_code << offset;
+
+    window = window | huffman_code;
+
+    std::memcpy(buffer_iter, &window, sizeof(window));
+
+    advance_buffer(code_len);
 }
 
 
-void Huffman_code::add_frequency_to_symbols(coded_vec& coded_vec, bit_map& bit_map, std::vector<HuffmanTreeNode> tree1,
-                                            std::vector<HuffmanTreeNode> tree2)
+std::pair<huffmanTree, huffmanTree> Huffman_code::get_huffman_trees_from_vecs(::coded_vec& coded_vec)
 {
-    // calculate the frequency of each symbol
-    int bit_map_index = 0;
-    uint64_t bit_mask = 1;
-    uint64_t cur_bit_map = bit_map[bit_map_index];
-    for (uint32_t i = 0; i < coded_vec.size(); i++)
-    {
-        // update the bit map if we reched the end of cur_bit_map
-        if (bit_mask == 0)
-        {
-            bit_mask = 1;
-            bit_map_index++;
-            cur_bit_map = bit_map[bit_map_index];
-        }
-
-        uint32_t val = coded_vec[i];
-
-        // if val is a literal
-        if ((cur_bit_map & bit_mask) != 0)
-        {
-            tree1[val].frequency++;
-        }
-        // else val is a window length
-        else
-        {
-            // calculate the symbol that this window lenght falls in that range
-            tree1[get_symbol_from_range_for_tree_1(val)].frequency++;
-
-            // advance the index of the vector to get the distance
-            i++;
-
-            // val is distance
-            val = coded_vec[i];
-            tree2[get_symbol_from_range_for_tree_2(val).symbol].frequency++;
-        }
-        // advance the bit mask via shift
-        bit_mask = bit_mask << 1;
-    }
-}
-
-std::pair<std::vector<HuffmanTreeNode>, std::vector<HuffmanTreeNode>>
-Huffman_code::get_huffman_trees_from_vecs(::coded_vec& coded_vec, ::bit_map& bit_map)
-{
-    // reserve all nodes of the huffman trees
-    std::vector<HuffmanTreeNode> tree1;
-    std::vector<HuffmanTreeNode> tree2;
-    tree1.reserve(TREE1_NUM_SYMBOLS * 2 - 1);
-    tree2.reserve(TREE2_NUM_SYMBOLS * 2 - 1);
-
-
-    // fill in the nodes of the leafs
-    fill_leaf_nodes(tree1);
-    fill_leaf_nodes(tree2);
+    // reserve all posible nodes of the huffman trees
+    huffmanTree tree1(TREE1_NUM_SYMBOLS * 2 - 1);
+    huffmanTree tree2(TREE2_NUM_SYMBOLS * 2 - 1);
 
     // calculate the frequency of each symbol and add it to the apropriate tree
-    add_frequency_to_symbols(coded_vec, bit_map, tree1, tree2);
+    add_frequency_to_symbols(coded_vec, tree1, tree2);
 
     // create the actual huffman tree using the calculated frequencies
     create_huffman_tree(tree1, TREE1_NUM_SYMBOLS);
@@ -459,7 +457,37 @@ Huffman_code::get_huffman_trees_from_vecs(::coded_vec& coded_vec, ::bit_map& bit
     return std::pair{tree1, tree2};
 }
 
-void Huffman_code::create_huffman_tree(std::vector<HuffmanTreeNode>& tree, int num_symbols)
+void Huffman_code::add_frequency_to_symbols(coded_vec& coded_vec, huffmanTree tree1,
+                                            huffmanTree tree2)
+{
+    // calculate the frequency of each symbol
+    for (uint32_t i = 0; i < coded_vec.size(); i++)
+    {
+        uint32_t val = coded_vec[i];
+
+        // if val is a literal (indicated with bit = 1)
+        if (val <= 255)
+        {
+            tree1[val].frequency++;
+        }
+        // else val is a window length
+        else
+        {
+            uint32_t window_symbol = val - WINDOW_OFFSET;
+            // calculate the symbol that this window lenght falls in that range
+            tree1[get_symbol_from_range_for_tree_1(window_symbol)].frequency++;
+
+            // advance the index of the vector to get the distance
+            i++;
+
+            // val is distance
+            val = coded_vec[i];
+            tree2[get_symbol_from_range_for_tree_2(val).symbol].frequency++;
+        }
+    }
+}
+
+void Huffman_code::create_huffman_tree(huffmanTree& tree, int num_symbols)
 {
     // create min heap with the indexes of the tree with a custom compare function so the min heap will extract the min frequency
     auto cmp = [&tree](int left_index, int right_index)
@@ -467,7 +495,10 @@ void Huffman_code::create_huffman_tree(std::vector<HuffmanTreeNode>& tree, int n
         return tree[left_index].frequency > tree[right_index].frequency;
     };
 
-    // this queue holds the symbol as its value and the queue is determined by the frequency of that symbol.
+    // this queue is:
+    // the symbol as its value
+    // and the heap property is determined by the frequency of that symbol.
+    // (note that a std::priority_queue is a wraper to a vecor and that is the reason we have it as a parameter)
     std::priority_queue<int, std::vector<int>, decltype(cmp)> min_heap_tree(cmp);
 
     // add to the min heap all symbols that have frequency bigger than 0.
@@ -481,23 +512,22 @@ void Huffman_code::create_huffman_tree(std::vector<HuffmanTreeNode>& tree, int n
     while (!min_heap_tree.empty())
     {
         // get the two smallest frequency nodes
-        int node1 = min_heap_tree.top();
+        uint16_t node1 = min_heap_tree.top();
         min_heap_tree.pop();
-        int node2 = min_heap_tree.top();
+        uint16_t node2 = min_heap_tree.top();
         min_heap_tree.pop();
 
         // merge node 1 and node 2 to a new node with the combined frequency
         // and add node 1 and node 2 as its children.
         uint32_t new_frequency = tree[node1].frequency + tree[node2].frequency;
-        tree.emplace_back();
-        tree[i].frequency = new_frequency;
-        tree[i].left = node1;
-        tree[i].right = node2;
+        tree[i] = {new_frequency, node1, node2};
         i++;
     }
+    // resize the tree to the last node we added to it
+    tree.resize(i);
 }
 
-std::vector<uint16_t> Huffman_code::get_code_len_table(std::vector<HuffmanTreeNode>& tree, uint32_t table_size)
+std::vector<uint16_t> Huffman_code::get_code_len_table(huffmanTree& tree, uint32_t table_size)
 {
     // create len_table with all the symbols with len 0.
     std::vector<uint16_t> len_table(table_size, 0);
@@ -505,7 +535,16 @@ std::vector<uint16_t> Huffman_code::get_code_len_table(std::vector<HuffmanTreeNo
     //********* Use BFS to travers the tree to get all the code lengths *********
 
     // FIFO data structure that hold the node and its depth in the tree
-    std::deque<std::pair<int, int>> deque;
+    struct nodeDepthPair
+    {
+        nodeDepthPair(int node, int depth): node(node), depth(depth)
+        {
+        }
+
+        int node;
+        int depth;
+    };
+    std::deque<nodeDepthPair> deque;
 
     // give the root depth 0
     deque.emplace_back(tree.size() - 1, 0);
@@ -514,8 +553,8 @@ std::vector<uint16_t> Huffman_code::get_code_len_table(std::vector<HuffmanTreeNo
     while (!deque.empty())
     {
         // get the top node and its depth
-        int node = deque.front().first;
-        int depth = deque.front().second;
+        int node = deque.front().node;
+        int depth = deque.front().depth;
         deque.pop_back();
 
         // if the node is a symbol then we reached a leaf, so we can update its length
@@ -524,23 +563,96 @@ std::vector<uint16_t> Huffman_code::get_code_len_table(std::vector<HuffmanTreeNo
         // else we are at a intersection and we need to keep tranversing the tree
         else
         {
-            if (tree[node].left == -1) deque.emplace_back(tree[node].left, depth + 1);
-            if (tree[node].right == -1) deque.emplace_back(tree[node].right, depth + 1);
+            // if the currunt node has children then we add them to the queu with thier depth
+            if (tree[node].left != -1) deque.emplace_back(tree[node].left, depth + 1);
+            if (tree[node].right != -1) deque.emplace_back(tree[node].right, depth + 1);
         }
     }
     return len_table;
+}
+
+void Huffman_code::deflate_code_length(std::vector<uint16_t>& code_length_table)
+{
+    std::vector<uint8_t> code_len_to_num_apearances(15, 0);
+    int num_overflow = 0;
+
+    // count how many symbols are there for each code len
+    for (unsigned short i : code_length_table)
+    {
+        if (i <= 15 && i > 0)
+        {
+            code_len_to_num_apearances[i - 1] += 1;
+        }
+        if (i > 15)
+        {
+            code_len_to_num_apearances[15] += 1;
+            num_overflow++;
+        }
+    }
+
+    // deflating the code lenghts
+    int k = 14;
+    while (num_overflow > 0)
+    {
+        if (code_len_to_num_apearances[k - 1] == 0)
+        {
+            k--;
+            continue;
+        }
+
+        code_len_to_num_apearances[14]--;
+        code_len_to_num_apearances[k - 1]--;
+        code_len_to_num_apearances[k] += 2;
+        if (k < 14) k++;
+        num_overflow--;
+    }
+
+    // sort the symbols by their original lenghts
+    std::vector<Decode> symbol_len_table;
+    for (int i = 0; i < code_length_table.size(); i++) symbol_len_table.emplace_back(i, code_length_table[i]);
+    std::sort(symbol_len_table.begin(), symbol_len_table.end());
+
+    // update the codelengths in the order of the original code lengths
+    int j = 0;
+    for (auto& i : symbol_len_table)
+    {
+        if (code_len_to_num_apearances[j] == 0)
+        {
+            j++;
+            continue;
+        }
+        i.num_bits = j;
+        code_len_to_num_apearances[j]--;
+    }
+
+    // updating to the new code lenghts
+    for (auto& symbol_len : symbol_len_table)
+    {
+        code_length_table[symbol_len.symbol] = symbol_len.num_bits;
+    }
 }
 
 // this method assumes the code len is not biggier than 15 bit
 std::vector<HuffmanCode> Huffman_code::create_canonial_huffman_code(
     const std::vector<uint16_t>& code_len_table)
 {
+    // small explenation on the algorithm of biulding the canonial huffman tree
+
     // the index is the symbol and the table maps from the index(symbol) to the len of the code and the code(in 64 bits)
     std::vector<HuffmanCode> canonial_code(code_len_table.size(), {0, 0});
 
-    // create a vetor from symbol to len
-    std::vector<std::pair<uint16_t, uint16_t>> symbol_to_len;
-    for (int i = 0; i < code_len_table.size(); i++)
+    // create a vector from symbol to len
+    struct symbol_len_pair
+    {
+        symbol_len_pair(uint16_t symbol, uint16_t len): symbol(symbol), len(len)
+        {
+        }
+
+        uint16_t symbol;
+        uint16_t len;
+    };
+    std::vector<symbol_len_pair> symbol_to_len;
+    for (size_t i = 0; i < code_len_table.size(); i++)
     {
         if (code_len_table[i] > 0) symbol_to_len.emplace_back(i, code_len_table[i]);
     }
@@ -548,38 +660,27 @@ std::vector<HuffmanCode> Huffman_code::create_canonial_huffman_code(
     // sort the symbol to len by len then by symbol
     std::sort(symbol_to_len.begin(), symbol_to_len.end(), [](const auto& a, const auto& b)
     {
-        if (a.second != b.second)
-        {
-            return a.second < b.second;
-        }
-        return a.first < b.first;
+        return std::tie(a.len, a.symbol) < std::tie(b.len, b.symbol);
     });
 
-    int pre_len = 0;
+    int previous_code_len = 0;
     uint16_t huffman_code = 0;
-    for (auto symbol_to_len_pair : symbol_to_len)
+    for (const auto& symbol_to_len_pair : symbol_to_len)
     {
-        if (pre_len < symbol_to_len_pair.second)
+        if (previous_code_len < symbol_to_len_pair.len)
         {
-            huffman_code = huffman_code << (symbol_to_len_pair.second - pre_len);
-            pre_len = symbol_to_len_pair.second;
+            huffman_code = huffman_code << (symbol_to_len_pair.len - previous_code_len);
+            previous_code_len = symbol_to_len_pair.len;
         }
-        canonial_code[symbol_to_len_pair.first].len_code = symbol_to_len_pair.second;
-        canonial_code[symbol_to_len_pair.first].len_code = huffman_code;
+
+        canonial_code[symbol_to_len_pair.symbol].len_code = symbol_to_len_pair.len;
+        canonial_code[symbol_to_len_pair.symbol].huffman_code = huffman_code;
         huffman_code++;
     }
 
     return canonial_code;
 }
 
-
-void Huffman_code::fill_leaf_nodes(std::vector<HuffmanTreeNode> tree1)
-{
-    for (int i = 0; i < TREE1_NUM_SYMBOLS; i++)
-    {
-        tree1.emplace_back();
-    }
-}
 
 uint16_t Huffman_code::get_symbol_from_range_for_tree_1(uint32_t val)
 {
@@ -602,7 +703,7 @@ DistanceEncodeInfo Huffman_code::get_symbol_from_range_for_tree_2(uint32_t val)
 
     uint8_t b = (val >> (msb - 1)) & 1;
 
-    DistanceEncodeInfo info;
+    DistanceEncodeInfo info{};
     info.symbol = (((msb - 2) * 2) + 16) + b;
     info.extra_bits_len = msb - 1;
 
@@ -616,14 +717,14 @@ DistanceEncodeInfo Huffman_code::get_symbol_from_range_for_tree_2(uint32_t val)
 void Huffman_code::fill_table_windowLengthToCode(
     const std::vector<HuffmanCode>& canonial_code)
 {
-    for (int i = 0; i < windowLengthToCode.size(); i++)
+    for (int range = 0; range < windowLengthToCode.size(); range++)
     {
-        int symbol = get_symbol_from_range_for_tree_1(i + 4);
-        uint32_t extra_bit_val = (i + 4) - tree1_symbolToRange_table[symbol];
+        int symbol = get_symbol_from_range_for_tree_1(range + 4);
+        uint32_t extra_bit_val = (range + 4) - tree1_symbolToRange_table[symbol];
 
-        windowLengthToCode[i].huffman_code = canonial_code[symbol].huffman_code;
-        windowLengthToCode[i].huffman_len = canonial_code[symbol].len_code;
-        windowLengthToCode[i].extra_bits_val = extra_bit_val;
-        windowLengthToCode[i].extra_bits_len = std::__bit_width(extra_bit_val);
+        windowLengthToCode[range].huffman_code = canonial_code[symbol].huffman_code;
+        windowLengthToCode[range].huffman_len = canonial_code[symbol].len_code;
+        windowLengthToCode[range].extra_bits_val = extra_bit_val;
+        windowLengthToCode[range].extra_bits_len = std::__bit_width(extra_bit_val);
     }
 }

@@ -31,6 +31,16 @@ namespace binary_io
          */
         bool slide_window();
 
+        /**
+         * This function reads 'count' bytes into the address dest, from the file.
+         * If the file has less than count bytes in it it will read only what is left.
+         *
+         * @param dest the buffer to read into the data from the file
+         * @param count the number of bytes to read from the file
+         * @return true if successful (we havent reached the eof), and false if failed
+         */
+        bool read_bytes(uint8_t *dest, size_t count);
+
 
         /**
          * getter of the past window.

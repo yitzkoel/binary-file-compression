@@ -25,6 +25,17 @@ namespace binary_io
         return true;
     }
 
+    bool FileReader::read_bytes(uint8_t* dest, size_t count)
+    {
+        if (file.eof()) return false;
+
+        file.read(reinterpret_cast<char*>(dest),count);
+
+        num_bytes_read += file.gcount();
+
+        return true;
+    }
+
     std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> FileReader::get_buffer()
     {
         return buffer;
