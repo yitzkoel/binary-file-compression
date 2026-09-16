@@ -39,9 +39,9 @@ class hashTable
 public:
     explicit hashTable(int power_of_two_size);
 
-    cyclicArray* find(uint32_t index);
+    cyclicArray* find(uint32_t val);
 
-    void add(uint32_t index);
+    void add(uint32_t val);
 
     void clear();
 
@@ -58,6 +58,8 @@ private:
     static const uint32_t golden_ratio = 2654435769;
 
     static const int num_looks = 8;
+
+    friend class TestHashTable;
 };
 
 #endif //HASHTABLE_H
