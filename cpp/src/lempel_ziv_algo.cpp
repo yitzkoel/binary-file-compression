@@ -135,20 +135,20 @@ bool Lempel_ziv_algo::find_window()
     auto iter = hash_map.find(next_four_bytes);
 
     // if we found that there are previos potential matches we start to search through them to find the best one
-    if (iter != hash_map.end())
+    if (iter != nullptr)
     {
         // get the actual cyclic array
-        auto& array = iter->second;
+        auto array = iter->array_ptr;
 
         // find till what index does the cyclic array hold valid past indexes.
-        uint8_t max_index = array.index_in_array;
-        if (array.array_full) max_index = cyclicArray::NUM_ELEMENTS_IN_ARRAY;
+        uint8_t max_index = iter->index_in_array;
+        if (iter->array_full) max_index = NUM_ELEMENTS_IN_ARRAY;
 
-        uint32_t max_index_past_match = array.array[0]; // init to first match past index
+        uint32_t max_index_past_match = array[0]; // init to first match past index
         uint64_t max_matching_window_size = 4;
         for (int i = 0; i < max_index; i++)
         {
-            uint32_t cur_index_past_match = array.array[i];
+            uint32_t cur_index_past_match = array[i];
             uint64_t cur_max_matching_window_size = find_max_window_from_given_index(
                 cur_index_past_match, max_window_size);
 
@@ -158,8 +158,8 @@ bool Lempel_ziv_algo::find_window()
                 max_matching_window_size = cur_max_matching_window_size;
             }
         }
-        // add tho the cyclic array the current index in the buffer since it also starts with those 4 bytes
-        array.add_elem(index_in_buffer);
+        // add to the cyclic array the current index in the buffer since it also starts with those 4 bytes
+        iter->add_elem(index_in_buffer);
 
         // update the max window found data
         start_window_index = max_index_past_match;
@@ -173,10 +173,10 @@ bool Lempel_ziv_algo::find_window()
     else
     {
         // add new entry to the hash map
-        hash_map[next_four_bytes];
+        hash_map.add(next_four_bytes);
 
         // add the new entry hash map cyclic array this current index.
-        hash_map[next_four_bytes].add_elem(index_in_buffer);
+        hash_map.find(next_four_bytes)->add_elem(index_in_buffer);
         literal = (*buffer)[index_in_buffer];
 
         // return failed to find a window

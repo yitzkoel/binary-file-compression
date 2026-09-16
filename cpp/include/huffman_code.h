@@ -13,20 +13,21 @@
 #include <bit>
 #include <utility>
 #include <algorithm>
-#include <..\include\binary_io.h>
+#include "binary_io.h"
 
-using coded_vec = std::vector<uint32_t>;
+using CodedVec = std::vector<uint32_t>;
 
 struct HuffmanTreeNode
 {
     HuffmanTreeNode(uint32_t frequency, uint16_t left, uint16_t right): frequency(frequency), left(left), right(right)
     {
     }
+ HuffmanTreeNode():frequency(0), left(-1),right(-1){}
 
     // note that it is unsighed and -1 is the largest value (111111111111 in binary)
-    uint32_t frequency = 0;
-    uint16_t left = -1;
-    uint16_t right = -1;
+    uint32_t frequency;
+    uint16_t left;
+    uint16_t right;
 };
 
 using huffmanTree = std::vector<HuffmanTreeNode>;
@@ -37,7 +38,7 @@ struct HuffmanCode
     uint16_t huffman_code;
 };
 
-struct windowLengthToCode
+struct WindowLengthToCode
 {
     uint16_t huffman_code; // the binary code
     uint8_t huffman_len; // the number of bytes in the code
@@ -55,7 +56,7 @@ struct DistanceEncodeInfo
 
 struct LempelZivBlockCode
 {
-    coded_vec coded_vec;
+    CodedVec coded_vec_;
     uint32_t num_bytes_compressed_in_block;
 };
 
@@ -64,14 +65,15 @@ struct Decode
     Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
     {
     }
+ Decode():symbol(-1),num_bits(-1){}
 
     bool operator <(const Decode& other) const
     {
         return num_bits < other.num_bits;
     }
 
-    uint8_t symbol;
-    uint8_t num_bits;
+    uint8_t symbol ;
+    uint8_t num_bits ;
 };
 
 
@@ -171,7 +173,7 @@ public:
      * @param original_file_size the number of bytes of the whole file
      */
     void compress(const std::string& file_path,
-                  std::vector<coded_vec>& coded_vecs,
+                  std::vector<CodedVec>& coded_vecs,
                   std::vector<uint32_t>& num_bytes_in_block_before_compression,
                   std::uint64_t original_file_size);
 
@@ -182,7 +184,7 @@ public:
      * @param file_path the file that the compressed file is at
      * @return a vector of coded vecs each coded vec is a block of compressed data.
      */
-    std::vector<coded_vec> decompress(const std::string& file_path);
+    std::vector<CodedVec> decompress(const std::string& file_path);
 
     /**
      * Rests the data structures that this object holds for a new compression.
@@ -226,7 +228,7 @@ private:
      *
      * @return the number of bytes needed to compress this vec
      */
-    void write_vec_code(const ::coded_vec& coded_vec,
+    void write_vec_code(const ::CodedVec& coded_vec,
                         std::vector<HuffmanCode>& canonial_code_1
                         , std::vector<HuffmanCode>& canonial_code_2);
 
@@ -245,7 +247,7 @@ private:
      *
      * @return two huffman trees, ONE: codes the literal and window lengths of in the vec, TWO: codes the distances
      */
-    static std::pair<huffmanTree, huffmanTree> get_huffman_trees_from_vecs(::coded_vec& coded_vec);
+    static std::pair<huffmanTree, huffmanTree> get_huffman_trees_from_vecs(::CodedVec& coded_vec);
 
     /**
      *  Uses the frquency of each symbol (the first 'num_symbols' elements in the vector
@@ -283,7 +285,7 @@ private:
      * @param tree1 the first huffman tree encoding the literals and window lengths
      * @param tree2 the second huffman tree encoding the distances(the past index the window starts at).
      */
-    static void add_frequency_to_symbols(coded_vec& coded_vec, huffmanTree tree1, huffmanTree tree2);
+    static void add_frequency_to_symbols(CodedVec& coded_vec, huffmanTree tree1, huffmanTree tree2);
 
     LempelZivBlockCode decompress_block(binary_io::FileReader& file_reader);
 
@@ -292,7 +294,7 @@ private:
      * @param coded_vec the coded vec of this block
      * @param num_bytes_compressed_in_block the number of bytes of the original uncompressed file this block compresses
      */
-    void compress_block(coded_vec& coded_vec, uint32_t num_bytes_compressed_in_block);
+    void compress_block(CodedVec& coded_vec, uint32_t num_bytes_compressed_in_block);
 
 
     //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
@@ -388,7 +390,7 @@ private:
     static std::array<uint32_t, TREE1_NUM_SYMBOLS> tree1_symbolToRange_table;
     static std::array<uint32_t, TREE2_NUM_SYMBOLS> tree2_symbolToRange_table;
 
-    static std::array<windowLengthToCode, 2069> windowLengthToCode;
+    static std::array<WindowLengthToCode, 2069> windowLengthToCode;
 
     static std::array<uint8_t, TREE1_NUM_SYMBOLS - 256> symbol_to_num_extra_bits_map1;
     static std::array<uint8_t, TREE2_NUM_SYMBOLS> symbol_to_num_extra_bits_map2;

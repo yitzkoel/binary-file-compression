@@ -12,6 +12,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(run_unit_tests
                 test_lempel_ziv.cpp
+                test_hash_table.cpp
 )
 
 target_link_libraries(run_unit_tests

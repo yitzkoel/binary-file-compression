@@ -86,22 +86,22 @@ protected:
         return compressor.find_window();
     }
 
-    uint64_t get_window_size() const
+    [[nodiscard]] uint64_t get_window_size() const
     {
         return compressor.len_window;
     }
 
-    uint64_t get_start_index() const
+    [[nodiscard]] uint64_t get_start_index() const
     {
         return compressor.start_window_index;
     }
 
-    uint64_t get_literal() const
+    [[nodiscard]] uint64_t get_literal() const
     {
         return compressor.literal;
     }
 
-    uint64_t get_current_index_in_buffer() const
+    [[nodiscard]] uint64_t get_current_index_in_buffer() const
     {
         return compressor.index_in_buffer;
     }
@@ -113,12 +113,12 @@ protected:
 
     const cyclicArray& get_array(uint32_t key)
     {
-        return compressor.hash_map[key];
+        return *(compressor.hash_map.find(key));
     }
 
-    bool is_key_in_dict(uint32_t key) const
+    [[nodiscard]] bool is_key_in_dict(uint32_t key)
     {
-        return compressor.hash_map.find(key) != compressor.hash_map.end();
+        return compressor.hash_map.find(key) != nullptr;
     }
 
 
@@ -225,21 +225,6 @@ TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
     EXPECT_EQ(get_max_window_from_given_index(0,0), 0);
 }
 
-TEST_F(LempelZivTest, TestcyclicArray)
-{
-    cyclicArray arr;
-
-    for (int i = 0; i < arr.array.size(); i++)
-    {
-        arr.add_elem(i);
-    }
-
-    EXPECT_EQ(arr.index_in_array, 0);
-
-    arr.add_elem(5);
-
-    EXPECT_EQ(arr.array[0], 5);
-}
 
 
 TEST_F(LempelZivTest, TestFindWindowBasicFlow)
@@ -258,7 +243,7 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_literal(), 'a');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     auto cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 0);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 0);
     increment_index_in_buffer(1);
 
 
@@ -267,7 +252,7 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_literal(), 'a');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 1);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 1);
     increment_index_in_buffer(1);
 
     // third cycle no match
@@ -275,7 +260,7 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_literal(), 'b');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 2);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 2);
     increment_index_in_buffer(1);
 
 
@@ -284,7 +269,7 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_literal(), 'c');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 3);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 3);
     increment_index_in_buffer(1);
 
     // forth cycle first match of 'a a b c'
@@ -293,8 +278,8 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_start_index(), 0);
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 0);
-    EXPECT_EQ(cyclic_arr.array[1], 4);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 0);
+    EXPECT_EQ(cyclic_arr.array_ptr[1], 4);
     increment_index_in_buffer(4);
 
     // fith cycle no match
@@ -302,7 +287,7 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_literal(), 'd');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 8);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 8);
     increment_index_in_buffer(1);
 
     // sixth cycle second match 'a a b c a'
@@ -311,9 +296,9 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     EXPECT_EQ(get_start_index(), 0);
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 0);
-    EXPECT_EQ(cyclic_arr.array[1], 4);
-    EXPECT_EQ(cyclic_arr.array[2], 9);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 0);
+    EXPECT_EQ(cyclic_arr.array_ptr[1], 4);
+    EXPECT_EQ(cyclic_arr.array_ptr[2], 9);
     increment_index_in_buffer(5);
 
 
@@ -340,7 +325,7 @@ TEST_F(LempelZivTest, TestFindWindow_OverlapFuture)
     EXPECT_EQ(get_literal(), 'a');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     auto cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 0);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 0);
     increment_index_in_buffer(1);
 
     // second cycle no match
@@ -348,7 +333,7 @@ TEST_F(LempelZivTest, TestFindWindow_OverlapFuture)
     EXPECT_EQ(get_literal(), 'b');
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 1);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 1);
     increment_index_in_buffer(1);
 
     // third cycle found overlapping match ' a b a b a b a b a b a b '
@@ -357,8 +342,8 @@ TEST_F(LempelZivTest, TestFindWindow_OverlapFuture)
     EXPECT_EQ(get_start_index(), 0);
     std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
     cyclic_arr = get_array(next_four_bytes);
-    EXPECT_EQ(cyclic_arr.array[0], 0);
-    EXPECT_EQ(cyclic_arr.array[1], 2);
+    EXPECT_EQ(cyclic_arr.array_ptr[0], 0);
+    EXPECT_EQ(cyclic_arr.array_ptr[1], 2);
     increment_index_in_buffer(12);
 }
 
@@ -395,7 +380,7 @@ TEST_F(LempelZivTest, TestCyclic_Array_Overflow)
     auto cyclic_arr = get_array(0);
     for (int i = 1; i < 33; i++)
     {
-        EXPECT_EQ(cyclic_arr.array[i % 32], 5 * i);
+        EXPECT_EQ(cyclic_arr.array_ptr[i % 32], 5 * i);
     }
 }
 
@@ -459,7 +444,7 @@ TEST_F(LempelZivTest, TestBasicDecompression)
     EXPECT_EQ(std::filesystem::file_size(std::filesystem::path(file_path)), 32);
 
 
-    std::array<uint8_t, 32> res_data;
+    std::array<uint8_t, 32> res_data{};
 
     file.read(reinterpret_cast<char*>(res_data.data()), 32);
     file.close();

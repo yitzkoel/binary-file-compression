@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(cpp_compressor CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 
@@ -10,7 +10,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 add_library(compressor_lib
         src/lempel_ziv_algo.cpp
         src/binary_io.cpp
-        src/huffman_code.cpp)
+        src/huffman_code.cpp
+        src/hashTable.cpp)
 
 # Linking compressor_lib to the include folder
 target_include_directories(compressor_lib PUBLIC include)

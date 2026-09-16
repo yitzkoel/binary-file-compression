@@ -66,7 +66,7 @@ Huffman_code::Huffman_code()
 }
 
 void Huffman_code::compress(const std::string& file_path,
-                            std::vector<::coded_vec>& coded_vecs,
+                            std::vector<::CodedVec>& coded_vecs,
                             std::vector<uint32_t>& num_bytes_in_block_before_compression,
                             std::uint64_t original_file_size)
 {
@@ -91,9 +91,9 @@ void Huffman_code::compress(const std::string& file_path,
     }
 }
 
-std::vector<coded_vec> Huffman_code::decompress(const std::string& file_path)
+std::vector<CodedVec> Huffman_code::decompress(const std::string& file_path)
 {
-    std::vector<coded_vec> coded_vecs;
+    std::vector<CodedVec> coded_vecs;
     std::vector<uint32_t> num_bytes_compressed_in_blocks;
 
     // the file that the compressed data is in.
@@ -119,7 +119,7 @@ std::vector<coded_vec> Huffman_code::decompress(const std::string& file_path)
         LempelZivBlockCode lempelZiv_block_code = decompress_block(file_reader);
         current_original_file_bytes_read += lempelZiv_block_code.num_bytes_compressed_in_block;
 
-        coded_vecs.push_back(lempelZiv_block_code.coded_vec);
+        coded_vecs.push_back(lempelZiv_block_code.coded_vec_);
     }
 
     return coded_vecs;
@@ -145,7 +145,7 @@ void Huffman_code::decode_window_length(LempelZivBlockCode& block_code, uint8_t 
     advance_buffer(symbol_to_num_extra_bits_map1[symbol]);
     uint32_t val = extra_val + tree1_symbolToRange_table[symbol];
 
-    block_code.coded_vec.push_back(val);
+    block_code.coded_vec_.push_back(val);
 }
 
 void Huffman_code::decode_distance(LempelZivBlockCode& block_code, uint8_t symbol)
@@ -154,7 +154,7 @@ void Huffman_code::decode_distance(LempelZivBlockCode& block_code, uint8_t symbo
     advance_buffer(symbol_to_num_extra_bits_map2[symbol]);
     uint32_t val = extra_val + tree2_symbolToRange_table[symbol];
 
-    block_code.coded_vec.push_back(val);
+    block_code.coded_vec_.push_back(val);
 }
 
 LempelZivBlockCode Huffman_code::decompress_block(binary_io::FileReader& file_reader)
@@ -203,7 +203,7 @@ LempelZivBlockCode Huffman_code::decompress_block(binary_io::FileReader& file_re
 
         if (symbol < 256)
         {
-            block_code.coded_vec.push_back(symbol);
+            block_code.coded_vec_.push_back(symbol);
         }
 
         else
@@ -306,7 +306,7 @@ void Huffman_code::advance_buffer(uint8_t num_bits)
 }
 
 
-void Huffman_code::compress_block(::coded_vec& coded_vec, uint32_t num_bytes_in_block_before_compression)
+void Huffman_code::compress_block(::CodedVec& coded_vec, uint32_t num_bytes_in_block_before_compression)
 {
     // write the bolck header into the buffer
     write_block_header(num_bytes_in_block_before_compression);
@@ -336,7 +336,7 @@ void Huffman_code::compress_block(::coded_vec& coded_vec, uint32_t num_bytes_in_
     std::vector<HuffmanCode> canonial_code_2 = create_canonial_huffman_code(tree2_code_length_table);
 
 
-    // fill the table windowLengthToCode
+    // fill the table WindowLengthToCode
     fill_table_windowLengthToCode(canonial_code_1);
 
 
@@ -345,7 +345,7 @@ void Huffman_code::compress_block(::coded_vec& coded_vec, uint32_t num_bytes_in_
     write_tree_dict(tree2_code_length_table);
 
 
-    // code the coded_vec into the buffer and from there flushed to the file
+    // code the coded_vec_ into the buffer and from there flushed to the file
     write_vec_code(coded_vec, canonial_code_1, canonial_code_2);
 
     // write the number of compressed bytes that vector took
@@ -376,7 +376,7 @@ void Huffman_code::write_block_header(uint32_t num_bytes_compressed_in_block)
 }
 
 
-void Huffman_code::write_vec_code(const ::coded_vec& coded_vec,
+void Huffman_code::write_vec_code(const ::CodedVec& coded_vec,
                                   std::vector<HuffmanCode>& canonial_code_1,
                                   std::vector<HuffmanCode>& canonial_code_2)
 {
@@ -441,7 +441,7 @@ void Huffman_code::write_code_into_buffer(uint16_t code_len, uint64_t huffman_co
 }
 
 
-std::pair<huffmanTree, huffmanTree> Huffman_code::get_huffman_trees_from_vecs(::coded_vec& coded_vec)
+std::pair<huffmanTree, huffmanTree> Huffman_code::get_huffman_trees_from_vecs(::CodedVec& coded_vec)
 {
     // reserve all posible nodes of the huffman trees
     huffmanTree tree1(TREE1_NUM_SYMBOLS * 2 - 1);
@@ -457,7 +457,7 @@ std::pair<huffmanTree, huffmanTree> Huffman_code::get_huffman_trees_from_vecs(::
     return std::pair{tree1, tree2};
 }
 
-void Huffman_code::add_frequency_to_symbols(coded_vec& coded_vec, huffmanTree tree1,
+void Huffman_code::add_frequency_to_symbols(CodedVec& coded_vec, huffmanTree tree1,
                                             huffmanTree tree2)
 {
     // calculate the frequency of each symbol

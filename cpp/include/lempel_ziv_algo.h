@@ -10,26 +10,8 @@
 #include <cstring>
 #include <cassert>
 
+#include "hashTable.h"
 #include "binary_io.h"
-
-struct cyclicArray
-{
-    const static  size_t NUM_ELEMENTS_IN_ARRAY = 32;
-    std::array<uint32_t,NUM_ELEMENTS_IN_ARRAY> array;
-    uint8_t index_in_array = 0;
-    bool array_full = false;
-
-    void add_elem(uint32_t new_elem)
-    {
-        array[index_in_array] = new_elem;
-        index_in_array++;
-        if(index_in_array >= NUM_ELEMENTS_IN_ARRAY)
-        {
-            index_in_array = 0;
-            array_full = true;
-        }
-    }
-};
 
 
 class Lempel_ziv_algo {
@@ -66,8 +48,9 @@ private:
     char LEN_WORD = 64;
 
     // the hash map
-    std::unordered_map<uint32_t,cyclicArray> hash_map;
-    // TODO buid an actual hash map
+    hashTable hash_map = hashTable(power_of_two_size_of_hash_table);
+    static const  int power_of_two_size_of_hash_table = 18;
+
 
     uint64_t num_bytes_read = 0;
     uint64_t index_in_buffer = 0 ;
@@ -76,8 +59,8 @@ private:
     uint16_t len_window = 0;
     uint64_t literal = 0;
 
-    static const uint64_t MAX_WINDOW_SIZE = (2<<11)+ 22;
-    static const uint16_t WINDOW_OFFSET = 256;
+    inline static const uint64_t MAX_WINDOW_SIZE = (2<<11)+ 22;
+    inline static const uint16_t WINDOW_OFFSET = 256;
 
     friend class LempelZivTest;
 };
@@ -85,10 +68,6 @@ private:
 // ==========================================
 // TODO: PERFORMANCE OPTIMIZATIONS
 // ==========================================
-
-// TODO (Performance - Hash Table): Replace 'std::unordered_map' with a custom flat array hash table.
-// The standard map uses separate chaining, causing severe CPU cache misses on every single byte processed.
-// A flat vector of cyclicArrays (e.g., size 1<<20) using a simple bit-shift hash will drastically improve speed.
 
 // TODO (Performance - Memory Allocation): Pre-allocate memory for 'coded_vec' and 'bit_map' inside compress().
 // Use 'reserve()' based on the chunk size to prevent costly dynamic reallocations (std::vector growing) inside the hot loop.
