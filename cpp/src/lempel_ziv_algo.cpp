@@ -20,7 +20,10 @@ void Lempel_ziv_algo::compress(const std::string& file_path)
             if (find_window())
             {
                 // add window and distance index
+
+                // the window length with the offset
                 coded_vec.push_back(len_window + WINDOW_OFFSET);
+                // the distance to the window from the current index
                 coded_vec.push_back(index_in_buffer - start_window_index);
 
                 // update index in the buffer
@@ -66,7 +69,7 @@ void Lempel_ziv_algo::decompress(const std::string& file_path)
         else
         {
             // read the next two values in the coded vec that code the start index of the window and the window length
-            len_window =  val;
+            len_window =  val - WINDOW_OFFSET;
             start_window_index = index_in_buffer - coded_vec[index_in_coded_vec];
             index_in_coded_vec++;
             // TODO safty check did we accedently passed the vec size or the bitmap and so on?

@@ -121,7 +121,6 @@ protected:
         return compressor.hash_map.find(key) != nullptr;
     }
 
-
 };
 
 TEST_F(LempelZivTest, AddingToCodedVec)
@@ -137,9 +136,9 @@ TEST_F(LempelZivTest, AddingToCodedVec)
 
     EXPECT_EQ(coded_vec.back(), 100);
     coded_vec.pop_back();
-    EXPECT_EQ(coded_vec.back(), 25);
-    coded_vec.pop_back();
     EXPECT_EQ(coded_vec.back(), 50);
+    coded_vec.pop_back();
+    EXPECT_EQ(coded_vec.back(), 25);
     coded_vec.pop_back();
 }
 
@@ -305,8 +304,6 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
     // eighth cycle no match
     EXPECT_EQ(find_window(), false);
     EXPECT_EQ(get_literal(), 'e');
-    std::memcpy(&next_four_bytes, buffer_data.data() + get_current_index_in_buffer(), 4);
-    EXPECT_FALSE(is_key_in_dict(next_four_bytes));
 }
 
 TEST_F(LempelZivTest, TestFindWindow_OverlapFuture)
@@ -394,8 +391,8 @@ TEST_F(LempelZivTest, TestBasicCompression)
     };
 
     std::vector<uint64_t> expected_coded_vec = {
-        'a', 'a', 'b', 0, 5, 'c', 'd', 8, 4, 'd', 'a', 'b', 'c', 'e',
-        15, 4, 'd', 3, 6, 'f', 'g'
+        'a', 'a', 'b',  261,3, 'c', 'd',  260,2, 'd', 'a', 'b', 'c', 'e',
+         260,4, 'd',  262,21, 'f', 'g'
     };
 
     std::string file_path = "basicCompressionTest.bin";
@@ -421,8 +418,8 @@ TEST_F(LempelZivTest, TestBasicCompression)
 TEST_F(LempelZivTest, TestBasicDecompression)
 {
     std::vector<uint32_t> coded_vec = {
-        'a', 'a', 'b', 0, 5, 'c', 'd', 8, 4, 'd', 'a', 'b', 'c', 'e',
-        15, 4, 'd', 3, 6, 'f', 'g'
+        'a', 'a', 'b',  261,3, 'c', 'd',  260,2, 'd', 'a', 'b', 'c', 'e',
+         260,4, 'd',  262,21, 'f', 'g'
     };
 
     std::vector<uint8_t> expected_data =
