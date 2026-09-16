@@ -11,7 +11,8 @@ add_library(compressor_lib
         src/lempel_ziv_algo.cpp
         src/binary_io.cpp
         src/huffman_code.cpp
-        src/hashTable.cpp)
+        src/hashTable.cpp
+        src/HuffmanBuilder.cpp)
 
 # Linking compressor_lib to the include folder
 target_include_directories(compressor_lib PUBLIC include)

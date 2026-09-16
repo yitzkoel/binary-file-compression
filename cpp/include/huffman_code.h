@@ -22,7 +22,10 @@ struct HuffmanTreeNode
     HuffmanTreeNode(uint32_t frequency, uint16_t left, uint16_t right): frequency(frequency), left(left), right(right)
     {
     }
- HuffmanTreeNode():frequency(0), left(-1),right(-1){}
+
+    HuffmanTreeNode(): frequency(0), left(-1), right(-1)
+    {
+    }
 
     // note that it is unsighed and -1 is the largest value (111111111111 in binary)
     uint32_t frequency;
@@ -32,7 +35,7 @@ struct HuffmanTreeNode
 
 using huffmanTree = std::vector<HuffmanTreeNode>;
 
-struct HuffmanCode
+struct HuffmanBuilder
 {
     uint8_t len_code;
     uint16_t huffman_code;
@@ -65,15 +68,18 @@ struct Decode
     Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
     {
     }
- Decode():symbol(-1),num_bits(-1){}
+
+    Decode(): symbol(-1), num_bits(-1)
+    {
+    }
 
     bool operator <(const Decode& other) const
     {
         return num_bits < other.num_bits;
     }
 
-    uint8_t symbol ;
-    uint8_t num_bits ;
+    uint8_t symbol;
+    uint8_t num_bits;
 };
 
 
@@ -229,13 +235,8 @@ private:
      * @return the number of bytes needed to compress this vec
      */
     void write_vec_code(const ::CodedVec& coded_vec,
-                        std::vector<HuffmanCode>& canonial_code_1
-                        , std::vector<HuffmanCode>& canonial_code_2);
-
-    /**
-        * write the EOF symbol into the file
-        */
-    void write_EOF(std::vector<HuffmanCode>& canonial_code_1);
+                        std::vector<HuffmanBuilder>& canonial_code_1
+                        , std::vector<HuffmanBuilder>& canonial_code_2);
 
     //#################### FUNCTION TO WRITE INTO THE FILE #####################
 
@@ -275,7 +276,7 @@ private:
      * @param code_len_table vector that maps each symbol (the index in the vector) to it's code length that maintains the craft inequality
      * @return a maping from a symbol(the index of the table) to (len_of_huffman_code, huffman_code).
      */
-    static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table);
+    static std::vector<HuffmanBuilder> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table);
 
 
     /**
@@ -329,8 +330,8 @@ private:
     uint32_t peak_bits_from_buffer(uint8_t count);
 
     /**
-     *  This function gets the current symbol read that encodes a window length and reads from the buffer the be
-     *  able to decode the actual coded window length and writes it into the vector
+     *  This function gets the current symbol read that encodes a window length, and reads from the buffer the
+     *  the rest of the data to decode the actual coded window length and writes it into the vector
      *  
      * @param block_code the data structure that holds the decoded vector
      * @param symbol the symbol of the window length we want to decode
@@ -338,8 +339,8 @@ private:
     void decode_window_length(LempelZivBlockCode& block_code, uint8_t symbol);
 
     /**
-     * This function gets the current symbol read that encodes a distance and reads from the buffer the be
-     * able to decode the actual coded distance and writes it into the vector
+     * This function gets the current symbol read that encodes a distance and reads from the buffer  the
+     * the rest of the data to decode the actual coded distance and writes it into the vector
      * @param block_code the data structure that holds the decoded vector
      * @param symbol the symbol of the distance we want to decode
      */
@@ -350,6 +351,7 @@ private:
      * @param num_bits the number of buts to advance the buffer
      */
     void advance_buffer(uint8_t num_bits);
+
     /**
      * this function reads new data into the buffer from the file, making sure that the data that was not read yeat is
      * saved in the new buffer.
@@ -360,14 +362,14 @@ private:
     void read_data_into_buffer(binary_io::FileReader& file_reader, uint8_t*& safe_end);
 
     /**
-     * This function fills in the field 'windowLengthToCode' wich is a table that lets us access in O(1) all the
+     * This function fills in the field 'windowLengthToCode' which is a table that lets us access in O(1) all the
      * relevent data to encode a window lenght without needing to calculate anything.
      * The reason we have this method for window lengths and not for distances is that there are 2069 different window
      * lenghts but there can be up to 4MB of distances (oproxemetly 4 milion bytes) so having a table for that is
      * inpracticle.
      * @param canonial_code the prefix free code for each symbol
      */
-    static void fill_table_windowLengthToCode(const std::vector<HuffmanCode>& canonial_code);
+    static void fill_table_windowLengthToCode(const std::vector<HuffmanBuilder>& canonial_code);
 
     //############## DATA STRUCTURES METHODS ################
 

@@ -251,7 +251,7 @@ std::vector<Decode> Huffman_code::get_encription_table(const int num_symbols)
 
     // get the canonial code for each tree
     // map from symbol(index of the vector) to (len,binary_code)
-    std::vector<HuffmanCode> canonial_code = create_canonial_huffman_code(tree_code_length_table);
+    std::vector<HuffmanBuilder> canonial_code = create_canonial_huffman_code(tree_code_length_table);
 
 
     std::vector<Decode> encription_table(2 << 15);
@@ -332,8 +332,8 @@ void Huffman_code::compress_block(::CodedVec& coded_vec, uint32_t num_bytes_in_b
 
     // get the canonial code for each tree
     // map from symbol( the index of the vector to (len,binary_code)
-    std::vector<HuffmanCode> canonial_code_1 = create_canonial_huffman_code(tree1_code_length_table);
-    std::vector<HuffmanCode> canonial_code_2 = create_canonial_huffman_code(tree2_code_length_table);
+    std::vector<HuffmanBuilder> canonial_code_1 = create_canonial_huffman_code(tree1_code_length_table);
+    std::vector<HuffmanBuilder> canonial_code_2 = create_canonial_huffman_code(tree2_code_length_table);
 
 
     // fill the table WindowLengthToCode
@@ -377,8 +377,8 @@ void Huffman_code::write_block_header(uint32_t num_bytes_compressed_in_block)
 
 
 void Huffman_code::write_vec_code(const ::CodedVec& coded_vec,
-                                  std::vector<HuffmanCode>& canonial_code_1,
-                                  std::vector<HuffmanCode>& canonial_code_2)
+                                  std::vector<HuffmanBuilder>& canonial_code_1,
+                                  std::vector<HuffmanBuilder>& canonial_code_2)
 {
     // code the vector
     for (uint32_t i = 0; i < coded_vec.size(); i++)
@@ -633,13 +633,13 @@ void Huffman_code::deflate_code_length(std::vector<uint16_t>& code_length_table)
 }
 
 // this method assumes the code len is not biggier than 15 bit
-std::vector<HuffmanCode> Huffman_code::create_canonial_huffman_code(
+std::vector<HuffmanBuilder> Huffman_code::create_canonial_huffman_code(
     const std::vector<uint16_t>& code_len_table)
 {
     // small explenation on the algorithm of biulding the canonial huffman tree
 
     // the index is the symbol and the table maps from the index(symbol) to the len of the code and the code(in 64 bits)
-    std::vector<HuffmanCode> canonial_code(code_len_table.size(), {0, 0});
+    std::vector<HuffmanBuilder> canonial_code(code_len_table.size(), {0, 0});
 
     // create a vector from symbol to len
     struct symbol_len_pair
@@ -715,7 +715,7 @@ DistanceEncodeInfo Huffman_code::get_symbol_from_range_for_tree_2(uint32_t val)
 
 
 void Huffman_code::fill_table_windowLengthToCode(
-    const std::vector<HuffmanCode>& canonial_code)
+    const std::vector<HuffmanBuilder>& canonial_code)
 {
     for (int range = 0; range < windowLengthToCode.size(); range++)
     {
