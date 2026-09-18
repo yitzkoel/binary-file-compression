@@ -93,12 +93,12 @@ void Lempel_ziv_algo::decompress(const std::string& file_path)
 
         if (index_in_buffer == buffer->size())
         {
-            output_file.flush_buffer_to_file(buffer, buffer->size());
+            output_file.flush_buffer_to_file(buffer->size());
             index_in_buffer = 0;
         }
     }
 
-    output_file.flush_buffer_to_file(buffer, index_in_buffer);
+    output_file.flush_buffer_to_file(index_in_buffer);
 }
 
 void Lempel_ziv_algo::clear()

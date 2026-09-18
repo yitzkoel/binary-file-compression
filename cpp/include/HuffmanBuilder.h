@@ -4,6 +4,7 @@
 
 #ifndef HUFFMANCODE_H
 #define HUFFMANCODE_H
+#include <cassert>
 #include <cstdint>
 #include <vector>
 #include <type_traits>
@@ -29,94 +30,134 @@ using HuffmanTree = std::vector<HuffmanTreeNode>;
 struct HuffmanCode
 {
     uint8_t len_code;
-    uint16_t huffman_code;
+    uint32_t huffman_code;
 };
 
 
-
-class HuffmanBuilder {
+/**
+ * create huffman code of max length 32 bits from a generic vector
+ */
+class HuffmanBuilder
+{
 public:
-    /**
-     * This is the constructor to the class
-     * @param max_code_len the max code length allowed
-     */
-    explicit HuffmanBuilder(int max_code_len);
+ /**
+  * This is the constructor to the class
+  * @param max_code_len the max code length allowed
+  */
+ explicit HuffmanBuilder(int max_code_len);
 
-    HuffmanBuilder() = default;
+ HuffmanBuilder() = default;
 
-    /**
-     *
-     * @tparam MapperFunc the function that maps the elements of the vector to a symbol to be coded
-     * @param coded_vec the vector to create from the huffman tree
-     * @param mapper the mapper function
-     * @param num_symbols the number of symbols that can be mapped from the vector
-     * @return A huffman tree object created from the vector
-     */
-    template <typename VType, typename MapperFunc>
-    HuffmanTree get_huffman_tree(const DataVec<VType>& data_vec, MapperFunc mapper, int num_symbols);
+ /**
+  *
+  * @tparam MapperFunc the function that maps the elements of the vector to a symbol to be coded
+  * @param data_vec the vector to create from the huffman tree
+  * @param mapper the mapper function
+  * @param num_symbols the number of symbols that can be mapped from the vector
+  * @return A huffman tree object created from the vector
+  */
+ template <typename VType, typename MapperFunc>
+ static  HuffmanTree get_huffman_tree(const DataVec<VType>& data_vec, MapperFunc mapper, int num_symbols)
+ {
+  // assert to make sure the mapper is a legal function
+  static_assert(std::is_convertible_v<decltype(mapper(data_vec[0])), uint32_t>,
+                   "CRITICAL ERROR: The mapper function MUST return a uint32_t (or compatible type)!");
 
-    // TODO ADD to the get_huffman_tree implementation
-    // static_assert(std::is_convertible_v<decltype(mapper(input_data[0])), uint32_t>,
-    //                  "CRITICAL ERROR: The mapper function MUST return a uint32_t (or compatible type)!");
+  // init the tree with the maximum amount of possible nodes
+  HuffmanTree tree((num_symbols * 2) - 1);
 
-    /**
-     * This function gets a vector of data and a mapper from the data to a symbol(a number).
-     * and creates a huffman code vector that maps each symbol to its code.
-     *
-     * @tparam VType the type of the vector
-     * @tparam MapperFunc the function that maps the vector type to a uint_32 value symbol that we encode
-     * @param data_vec the vector of the data to build to the huffman code
-     * @param mapper the mapper from Vtype to uint32_t
-     * @param num_symbols the number of symbols that the mapper can produce (from 0 to num_symbols)
-     * @return the huffman code to each symbol that apear in the vector.
-     */
-    template <typename VType, typename MapperFunc>
-    std::vector<HuffmanCode> get_canonial_huffman_code(const DataVec<VType>& data_vec, MapperFunc mapper, int num_symbols);
+  // count to each symbol the number of frequencies
+  count_symbol_frequency(tree, data_vec,mapper,num_symbols);
 
-    /**
-     *
-     * @param code_len_table a table that maps each symbol to its code lenght
-     * @return the huffman code to each symbol that has lenght that is non zero.
-     */
-    std::vector<HuffmanCode> get_canonial_huffman_code(const std::vector<uint16_t>& code_len_table);
+  create_huffman_tree(tree,num_symbols);
+
+  return tree;
+ }
+
+
+ /**
+  * This function gets a vector of data and a mapper from the data to a symbol(a number).
+  * and creates a huffman code vector that maps each symbol to its code.
+  *
+  * @tparam VType the type of the vector
+  * @tparam MapperFunc the function that maps the vector type to a uint_32 value symbol that we encode
+  * @param data_vec the vector of the data to build to the huffman code
+  * @param mapper the mapper from Vtype to uint32_t
+  * @param num_symbols the number of symbols that the mapper can produce (from 0 to num_symbols)
+  * @return the huffman code to each symbol that apear in the vector.
+  */
+ template <typename VType, typename MapperFunc>
+ static std::vector<HuffmanCode> get_canonial_huffman_code(const DataVec<VType>& data_vec, MapperFunc mapper, int num_symbols, int max_code_len)
+ {
+  assert(max_code_len <= 32 && "canoot create huffman code with max code lenght longer than 32");
+
+  HuffmanTree tree = get_huffman_tree(data_vec, mapper,num_symbols);
+
+  std::vector<uint8_t> code_len_table = get_code_len_table(tree, num_symbols);
+
+  deflate_code_length(code_len_table, max_code_len);
+
+  return create_canonial_huffman_code(code_len_table);
+ }
+
+ /**
+  *
+  * @param code_len_table a table that maps each symbol to its code lenght
+  * @return the huffman code to each symbol that has lenght that is non zero.
+  */
+ static std::vector<HuffmanCode> get_canonial_huffman_code(const std::vector<uint8_t>& code_len_table, int max_code_len);
+
+ static std::vector<uint8_t> get_code_len_table(std::vector<HuffmanCode>& huffman_code);
+
+
 
 private:
-    /**
-     * This function counts the frequency of each symbol in the data vector (using the mapper to get the symbol)
-     * @tparam VType the type of the vector
-     * @tparam MapperFunc the function that maps the vector type to a uint_32 value symbol that we encode
-     * @param tree the tree to fill with frequency(the first num_symbols are the symbols of the tree)
-     * @param data_vec the data
-     * @param mapper
-     */
-    template <typename VType, typename MapperFunc>
-    void count_symbol_frequency(HuffmanTree& tree, const DataVec<VType>& data_vec, MapperFunc mapper);
-    // TODO add the assert(symbol < num_symbols && "CRITICAL: Mapper returned a symbol out of bounds!"); to make sure that i didnt send bad mappper function
+ /**
+  * This function counts the frequency of each symbol in the data vector (using the mapper to get the symbol)
+  * @tparam VType the type of the vector
+  * @tparam MapperFunc the function that maps the vector type to a uint_32 value symbol that we encode
+  * @param tree the tree to fill with frequency(the first num_symbols are the symbols of the tree)
+  * @param data_vec the data
+  * @param mapper
+  */
+ template <typename VType, typename MapperFunc>
+ void count_symbol_frequency(HuffmanTree& tree, const DataVec<VType>& data_vec, MapperFunc mapper,int num_symbols)
+ {
+  // calculate the frequency of each symbol
+  for (uint32_t i = 0; i < data_vec.size(); i++)
+  {
+   uint32_t symbol = mapper(data_vec[i]);
+   assert(symbol < num_symbols && "CRITICAL: Mapper returned a symbol out of bounds!");
 
-    /**
-     * this function implements the algorithm of building the actual tree
-     * @param tree the tree with the filled frequencies
-     */
-    void create_huffman_tree(HuffmanTree& tree);
+   tree[i].frequency++;
+  }
+ }
 
-    /**
-     * thus function gets a full huffman tree and calculates the lenght of each symbols huffman code acording to that tree.
-     * @param tree the tree to calc from the code lenghts
-     * @param table_size the size of the table
-     * @return a table that maps each symbol to its code length
-     */
-    static std::vector<uint16_t> get_code_len_table(HuffmanTree& tree, uint32_t table_size);
+ /**
+  * this function implements the algorithm of building the actual tree
+  * @param tree the tree with the filled frequencies
+  */
+ static void create_huffman_tree(HuffmanTree& tree, int num_symbols);
 
-    /**
-     * This function deflates the table to hold lengths that are not longer then max_code_len,
-     * while maintaining the craft inequality therefore allowing to create a canonial huffman code.
-     * @param code_length_table the table to deflate
-     */
-    static void deflate_code_length(std::vector<uint16_t>& code_length_table);
+ /**
+  * thus function gets a full huffman tree and calculates the lenght of each symbols huffman code acording to that tree.
+  * @param tree the tree to calc from the code lenghts
+  * @param table_size the size of the table
+  * @return a table that maps each symbol to its code length
+  */
+ static std::vector<uint8_t> get_code_len_table(HuffmanTree& tree, uint32_t table_size);
 
-  int max_code_len = 15;
+ /**
+  * This function deflates the table to hold lengths that are not longer then max_code_len,
+  * while maintaining the craft inequality therefore allowing to create a canonial huffman code.
+  * @param code_length_table the table to deflate
+  */
+  static void deflate_code_length(std::vector<uint8_t>& code_length_table, int max_code_len);
+
+  [[nodiscard]] static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint8_t>& code_len_table) ;
+
+
+
 };
-
-
 
 #endif //HUFFMANCODE_H

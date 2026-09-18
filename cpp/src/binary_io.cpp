@@ -36,9 +36,9 @@ namespace binary_io
         return true;
     }
 
-    std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> FileReader::get_buffer()
+    uint8_t* FileReader::get_buffer()
     {
-        return buffer;
+        return buffer->data();
     }
 
     uint64_t FileReader::get_num_bytes_read() const
@@ -56,10 +56,14 @@ namespace binary_io
         file = std::ofstream(file_path, std::ios::binary);
     }
 
-    void FileWriter::flush_buffer_to_file(const std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>>& buffer,
-                                          uint64_t num_bytes_to_flush)
+    void FileWriter::flush_buffer_to_file(uint64_t num_bytes_to_flush)
     {
         file.write(reinterpret_cast<const char*>(buffer->data()), (long)num_bytes_to_flush);
+    }
+
+    uint8_t* FileWriter::get_buffer()
+    {
+        return buffer->data();
     }
 
     FileWriter::~FileWriter()

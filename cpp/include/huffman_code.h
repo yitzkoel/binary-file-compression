@@ -1,45 +1,19 @@
 //
 // Created by yitzk on 8/19/2026.
 //
-
 #ifndef HUFFMAN_CODE_H
 #define HUFFMAN_CODE_H
 
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstring>
-#include <queue>
-#include <bit>
-#include <utility>
 #include <algorithm>
 #include "binary_io.h"
+#include "HuffmanBuilder.h"
+#include "BitWriter.h"
+#include "BitReader.h"
 
 using CodedVec = std::vector<uint32_t>;
-
-struct HuffmanTreeNode
-{
-    HuffmanTreeNode(uint32_t frequency, uint16_t left, uint16_t right): frequency(frequency), left(left), right(right)
-    {
-    }
-
-    HuffmanTreeNode(): frequency(0), left(-1), right(-1)
-    {
-    }
-
-    // note that it is unsighed and -1 is the largest value (111111111111 in binary)
-    uint32_t frequency;
-    uint16_t left;
-    uint16_t right;
-};
-
-using huffmanTree = std::vector<HuffmanTreeNode>;
-
-struct HuffmanBuilder
-{
-    uint8_t len_code;
-    uint16_t huffman_code;
-};
 
 struct WindowLengthToCode
 {
@@ -55,12 +29,6 @@ struct DistanceEncodeInfo
     uint32_t symbol;
     uint32_t extra_bits_val;
     uint32_t extra_bits_len;
-};
-
-struct LempelZivBlockCode
-{
-    CodedVec coded_vec_;
-    uint32_t num_bytes_compressed_in_block;
 };
 
 struct Decode
@@ -82,7 +50,6 @@ struct Decode
     uint8_t num_bits;
 };
 
-
 /**
  * @class huffman_code
  *
@@ -103,15 +70,14 @@ struct Decode
  *
  * [Global Header]
  * <original_file_size>  -> 8 bytes (uint64_t). The total uncompressed size of the original file.
+ * <num_blocks_coded>  -> 8 bytes (uint64_t).
  *
  * [Block i] (Repeats until End Of File)
- * <uncompressed_size>   -> 3 bytes. The uncompressed size of this specific block (e.g.,4MB is the top limit).
- * <compressed_size>     -> 3 bytes. The number of bytes used to compress the entire block (not includes this 6 bytes of sizes).
- *
  * <Tree 1 Definition (Literals & Lengths)>
  *      <bit_lengths_1>  -> Array of 1 byte lengths used to reconstruct the Canonical Huffman tree.
  *                          (Symbol values:
                                              0-255:   Literals,
+                                             256:     EOF(end of file)
                                              256-284: Length Ranges from ). // TODO add the discription of the ranges
  *
  * <Tree 2 Definition (Distances)>
@@ -201,110 +167,40 @@ public:
 private:
     //#################### FUNCTION TO WRITE INTO THE FILE #####################
     /**
-     * writes into the first 8 bytes of the coded file the uncompressed file size.
-     * @param original_file_size the uncompressed file
-     */
-    void write_global_header(std::uint64_t original_file_size);
-
-    /**
-     * This function writes into the buffer the header to a block.
-     * @param num_bytes_compressed_in_block the number of bytes this block compresses.
-     */
-    void write_block_header(uint32_t num_bytes_compressed_in_block);
-
-    /**
-     * This function gets the prefix free code and the len of that code in bits, and writes it into the buffer.
-     * @param code_len the len in bits of the prefix free code to be writin into the buffer
-     * @param huffman_code the huffman code to be writin into the buffer
-     */
-    void write_code_into_buffer(uint16_t code_len, uint64_t huffman_code);
-
-    /**
-     * This function writes into the buffer the length of each huffman code.
-     * It writes it as an array of 1 byte since the huffman code is limited by 15 bits length.
-     * @param tree_code_length_table this vector holds to each symbol(the index) the len of the huffman code to that symbol
-     */
-    void write_tree_dict(std::vector<uint16_t>& tree_code_length_table);
-
-    /**
      * this function codes a vector that was coded using lempel ziv into binary code using huffman code
      * @param coded_vec the coded vec to code into binary.
-     * @param canonial_code_1 the huffman code to use to literals and window lengths
-     * @param canonial_code_2 the huffman code to use for distances
+     * @param literalLen_code the huffman code to use to literals and window lengths
+     * @param distance_code the huffman code to use for distances
      *
      * @return the number of bytes needed to compress this vec
      */
-    void write_vec_code(const ::CodedVec& coded_vec,
-                        std::vector<HuffmanBuilder>& canonial_code_1
-                        , std::vector<HuffmanBuilder>& canonial_code_2);
-
+    static void code_vec(const ::CodedVec& coded_vec,
+                               std::vector<HuffmanCode>& literalLen_code,
+                               std::vector<HuffmanCode>& distance_code,
+                               BitWriter& bit_writer);
     //#################### FUNCTION TO WRITE INTO THE FILE #####################
 
 
     //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
-    /**
-     * This function creates the huffman trees from the coded vec.
-     * The last index of the vector holds the root of the tree.
-     *
-     * @return two huffman trees, ONE: codes the literal and window lengths of in the vec, TWO: codes the distances
-     */
-    static std::pair<huffmanTree, huffmanTree> get_huffman_trees_from_vecs(::CodedVec& coded_vec);
-
-    /**
-     *  Uses the frquency of each symbol (the first 'num_symbols' elements in the vector
-     *  are the symbols and thier frequency) to create a huffman tree.
-     *
-     * @param tree the symbols(that are already saved as leaves) with thies frequency to copute the tree
-     * @param num_symbols the number of symbols this huffman tree codes
-     */
-    static void create_huffman_tree(huffmanTree& tree, int num_symbols);
-
-    /**
-     * This function gets a huffman tree and computes the code length of each symbol.
-     *
-     * @param tree a complete huffman tree (the leaves are the first table_size values)
-     * @param table_size the number of symbols the the tree coded
-     * @return a vector that maps each symbol (the index in the vector) to it's code length acording to this huffman tree
-     */
-    static std::vector<uint16_t> get_code_len_table(huffmanTree& tree, uint32_t table_size);
-
-    static void deflate_code_length(std::vector<uint16_t>& code_length_table);
-
-    /**
-     * This function takes a code_len_table and converts it to a huffman canonial code table
-     * (symbol)->(len_of_huffman_code, huffman_code), the index is the symbol and the value at the vector is the code.
-     * @param code_len_table vector that maps each symbol (the index in the vector) to it's code length that maintains the craft inequality
-     * @return a maping from a symbol(the index of the table) to (len_of_huffman_code, huffman_code).
-     */
-    static std::vector<HuffmanBuilder> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table);
-
-
-    /**
-     * This function is responsible to give each symbol the number of times it apeared in the vector
-     *
-     * @param coded_vec the vector of symbols we want to calculate the frequency of each symbol in that vector
-     * @param tree1 the first huffman tree encoding the literals and window lengths
-     * @param tree2 the second huffman tree encoding the distances(the past index the window starts at).
-     */
-    static void add_frequency_to_symbols(CodedVec& coded_vec, huffmanTree tree1, huffmanTree tree2);
-
-    LempelZivBlockCode decompress_block(binary_io::FileReader& file_reader);
+    ::CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
     /**
      * this function codes into binary the the coded vec into a block and writes it into the file.
      * @param coded_vec the coded vec of this block
      * @param num_bytes_compressed_in_block the number of bytes of the original uncompressed file this block compresses
      */
-    void compress_block(CodedVec& coded_vec, uint32_t num_bytes_compressed_in_block);
+    void compress_block(CodedVec& coded_vec, uint32_t num_bytes_compressed_in_block, BitWriter& bit_writer);
 
+    static uint32_t literal_and_window_mapper(uint32_t val);
 
+    static uint32_t distance_mapper(uint32_t val);
     //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
 
 
     //############## DATA STRUCTURES METHODS ################
-    static uint16_t get_symbol_from_range_for_tree_1(uint32_t val);
+    static uint16_t map_window_len_to_symbol(uint32_t window_len);
 
-    static DistanceEncodeInfo get_symbol_from_range_for_tree_2(uint32_t val);
+    static DistanceEncodeInfo map_distance_to_symbol(uint32_t val);
 
     /**
      * This function gets the huffman code and is responsible to create a map that will map every number with the prefix
@@ -312,7 +208,7 @@ private:
      *
      * @return the Decoding vector
      */
-    std::vector<Decode> get_encription_table(int num_symbols);
+    std::vector<Decode> create_15bit_to_symbol_table(int num_symbols, BitReader& bit_reader);
 
     /**
      * This function extracts the length table from the block's code.
@@ -320,14 +216,7 @@ private:
      * @param num_symbols the number of symbols to extract their length
      * @return a vector that maps each symbol(the index) to its prefix free code length
      */
-    std::vector<uint16_t> extract_len_table_for_huffman_code(size_t num_symbols);
-
-    /**
-   * this function returns the next 'count' bits in the buffer
-   * @param count the number of bits to peak ahead
-   * @return the window of bits
-   */
-    uint32_t peak_bits_from_buffer(uint8_t count);
+    static std::vector<uint8_t> read_code_len_table(size_t num_symbols, BitReader& bit_reader);
 
     /**
      *  This function gets the current symbol read that encodes a window length, and reads from the buffer the
@@ -336,7 +225,7 @@ private:
      * @param block_code the data structure that holds the decoded vector
      * @param symbol the symbol of the window length we want to decode
      */
-    void decode_window_length(LempelZivBlockCode& block_code, uint8_t symbol);
+    static void decode_window_length(::CodedVec& block_code, uint8_t symbol, BitReader& bit_reader);
 
     /**
      * This function gets the current symbol read that encodes a distance and reads from the buffer  the
@@ -344,22 +233,16 @@ private:
      * @param block_code the data structure that holds the decoded vector
      * @param symbol the symbol of the distance we want to decode
      */
-    void decode_distance(LempelZivBlockCode& block_code, uint8_t symbol);
-
-    /**
-     * this function advances the buffer 'num_bits' bits.
-     * @param num_bits the number of buts to advance the buffer
-     */
-    void advance_buffer(uint8_t num_bits);
+    static void decode_distance(::CodedVec& block_code, uint8_t symbol, BitReader& bit_reader);
 
     /**
      * this function reads new data into the buffer from the file, making sure that the data that was not read yeat is
      * saved in the new buffer.
      *
      * @param file_reader the file to read the new data from
-     * @param safe_end the pointer to the part in the buffer we dont want to cross
+     * @param bit_reader the handle to read single bits out of the file
      */
-    void read_data_into_buffer(binary_io::FileReader& file_reader, uint8_t*& safe_end);
+    void read_new_data_into_buffer(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
     /**
      * This function fills in the field 'windowLengthToCode' which is a table that lets us access in O(1) all the
@@ -369,35 +252,27 @@ private:
      * inpracticle.
      * @param canonial_code the prefix free code for each symbol
      */
-    static void fill_table_windowLengthToCode(const std::vector<HuffmanBuilder>& canonial_code);
-
+    static void create_windowLenToCode_table(const std::vector<HuffmanCode>& canonial_code);
     //############## DATA STRUCTURES METHODS ################
 
 
     //#################### FIELDS ###################
-    // this buffer hold the coded data before being flushed from ro to the actual file.
-    std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> buffer = std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
-    uint8_t* buffer_iter; // indicates what byte in buffer we are
-    uint8_t offset; // holds number between 0 and 7 to indicate at what bit we are in the buffer
-    uint32_t num_bytes_read_in_buffer; // the number of bytes in the buffer that has data
-
+    static const int MAX_CODE_LEN = 15;
+    const static uint8_t EOF_SYMBOL;
+    static const uint16_t WINDOW_OFFSET = 257;
 
     // number of symbols in each huffman tree
-    static const int TREE1_NUM_SYMBOLS = 285;
-    static const int TREE2_NUM_SYMBOLS = 56;
-
-    static const uint16_t WINDOW_OFFSET = 256;
+    static const int LITERAL_AND_LEN_NUM_SYMBOLS = 285;
+    static const int DISTANCE_NUM_SYMBOLS = 56;
 
     // maps from symbol of the huffman code to the range of number it represents
-    static std::array<uint32_t, TREE1_NUM_SYMBOLS> tree1_symbolToRange_table;
-    static std::array<uint32_t, TREE2_NUM_SYMBOLS> tree2_symbolToRange_table;
+    static std::array<uint32_t, LITERAL_AND_LEN_NUM_SYMBOLS> symbolToLenRange_table;
+    static std::array<uint32_t, DISTANCE_NUM_SYMBOLS> symbolToDistanceRange_table;
 
-    static std::array<WindowLengthToCode, 2069> windowLengthToCode;
+    static std::array<WindowLengthToCode, 2069> windowLenToCode;
 
-    static std::array<uint8_t, TREE1_NUM_SYMBOLS - 256> symbol_to_num_extra_bits_map1;
-    static std::array<uint8_t, TREE2_NUM_SYMBOLS> symbol_to_num_extra_bits_map2;
-
+    static std::array<uint8_t, LITERAL_AND_LEN_NUM_SYMBOLS - 256> symbol_to_len_num_extra_bits;
+    static std::array<uint8_t, DISTANCE_NUM_SYMBOLS> symbol_to_dist_num_extra_bits;
     //#################### FIELDS ###################
 };
-
 #endif //HUFFMAN_CODE_H

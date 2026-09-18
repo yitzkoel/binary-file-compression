@@ -12,7 +12,10 @@ add_library(compressor_lib
         src/binary_io.cpp
         src/huffman_code.cpp
         src/hashTable.cpp
-        src/HuffmanBuilder.cpp)
+        src/HuffmanBuilder.cpp
+        src/BitWriter.cpp
+        src/BitReader.cpp
+)
 
 # Linking compressor_lib to the include folder
 target_include_directories(compressor_lib PUBLIC include)

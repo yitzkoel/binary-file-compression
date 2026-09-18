@@ -60,7 +60,7 @@ private:
     uint64_t literal = 0;
 
     inline static const uint64_t MAX_WINDOW_SIZE = (2<<11)+ 22;
-    inline static const uint16_t WINDOW_OFFSET = 256;
+    inline static const uint16_t WINDOW_OFFSET = 257;
 
     friend class LempelZivTest;
 };

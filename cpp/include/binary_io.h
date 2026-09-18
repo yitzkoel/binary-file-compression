@@ -46,7 +46,7 @@ namespace binary_io
          * getter of the past window.
          * @return the array that holds the past window of the file
          */
-        std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> get_buffer();
+        uint8_t* get_buffer();
 
         /**
          * Gets the number of bytes that where writin into the buffer (from index 0 to the returned value).
@@ -78,13 +78,16 @@ namespace binary_io
          * @param buffer the buffer to write from into the file
          * @param num_bytes_to_flush the number of bytes to read from the file
          */
-        void flush_buffer_to_file(const std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>>& buffer,
-                                  uint64_t num_bytes_to_flush);
+        void flush_buffer_to_file(uint64_t num_bytes_to_flush);
+
+        uint8_t* get_buffer();
 
         /**
          * Closes the file.
          */
         ~FileWriter();
+     std::shared_ptr<std::array<uint8_t, BUFFER_SIZE>> buffer =
+         std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
 
     private:
         std::ofstream file;
