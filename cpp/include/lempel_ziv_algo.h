@@ -13,12 +13,14 @@
 #include "hashTable.h"
 #include "binary_io.h"
 
+using CodedVec = std::vector<uint32_t>;
+
 
 class Lempel_ziv_algo {
 public:
-    void compress(const std::string& file_path);
+    CodedVec compress(const std::string& file_path);
 
-    void decompress(const std::string& file_path);
+    void decompress(const std::string& file_path, CodedVec code_vec);
 
     void clear();
 
@@ -43,8 +45,7 @@ private:
     bool find_window();
 
 
-    std::shared_ptr<std::array<uint8_t,BUFFER_SIZE>> buffer = nullptr;
-    std::vector<uint32_t> coded_vec;
+    uint8_t* buffer = nullptr;
     char LEN_WORD = 64;
 
     // the hash map

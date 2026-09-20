@@ -7,12 +7,8 @@
 #include <queue>
 #include <tuple>
 
-HuffmanBuilder::HuffmanBuilder(int max_code_len)
-{
-    assert(max_code_len <= 32 && "canoot create huffman code with max code lenght longer than 32");
-}
 
-std::vector<HuffmanCode> HuffmanBuilder::get_canonial_huffman_code(const std::vector<uint8_t>& code_len_table, int max_code_len)
+std::vector<HuffmanCode> HuffmanBuilder::get_canonial_huffman_code(const std::vector<uint16_t>& code_len_table, int max_code_len)
 {
     auto code_len = code_len_table;
     assert(max_code_len <= 32 && "canoot create huffman code with max code lenght longer than 32");
@@ -51,9 +47,26 @@ void HuffmanBuilder::create_huffman_tree(HuffmanTree& tree, int num_symbols)
         if (tree[i].frequency > 0) min_heap_tree.push(i);
     }
 
+    // edge case: there are no symbols
+    if (min_heap_tree.empty())
+    {
+        tree.resize(0);
+        return;
+    }
+
+    // edge case: there is only one symbol
+    if (min_heap_tree.size() == 1)
+    {
+        int single_node = min_heap_tree.top();
+        int dummy_node = (single_node == 0) ? 1 : 0;
+        tree[dummy_node].frequency = 1;
+        min_heap_tree.push(dummy_node);
+    }
+
     // build the huffman tree
     int i = num_symbols;
-    while (!min_heap_tree.empty())
+    if(min_heap_tree.size() == 1) i = 1;
+    while (min_heap_tree.size() > 1)
     {
         // get the two smallest frequency nodes
         uint16_t node1 = min_heap_tree.top();
@@ -65,16 +78,17 @@ void HuffmanBuilder::create_huffman_tree(HuffmanTree& tree, int num_symbols)
         // and add node 1 and node 2 as its children.
         uint32_t new_frequency = tree[node1].frequency + tree[node2].frequency;
         tree[i] = {new_frequency, node1, node2};
+        min_heap_tree.push(i);
         i++;
     }
     // resize the tree to the last node we added to it
     tree.resize(i);
 }
 
-std::vector<uint8_t> HuffmanBuilder::get_code_len_table(HuffmanTree& tree, uint32_t table_size)
+std::vector<uint16_t> HuffmanBuilder::get_code_len_table(HuffmanTree& tree, uint32_t table_size)
 {
     // create len_table with all the symbols with len 0.
-    std::vector<uint8_t> len_table(table_size, 0);
+    std::vector<uint16_t> len_table(table_size, 0);
 
     //********* Use BFS to travers the tree to get all the code lengths *********
 
@@ -99,7 +113,7 @@ std::vector<uint8_t> HuffmanBuilder::get_code_len_table(HuffmanTree& tree, uint3
         // get the top node and its depth
         int node = deque.front().node;
         int depth = deque.front().depth;
-        deque.pop_back();
+        deque.pop_front();
 
         // if the node is a symbol then we reached a leaf, so we can update its length
         if (node < table_size) len_table[node] = depth;
@@ -108,35 +122,100 @@ std::vector<uint8_t> HuffmanBuilder::get_code_len_table(HuffmanTree& tree, uint3
         else
         {
             // if the currunt node has children then we add them to the queu with thier depth
-            if (tree[node].left != -1) deque.emplace_back(tree[node].left, depth + 1);
-            if (tree[node].right != -1) deque.emplace_back(tree[node].right, depth + 1);
+            if (tree[node].left != UINT16_MAX) deque.emplace_back(tree[node].left, depth + 1);
+            if (tree[node].right != UINT16_MAX) deque.emplace_back(tree[node].right, depth + 1);
         }
     }
     return len_table;
 }
 
-void HuffmanBuilder::deflate_code_length(std::vector<uint8_t>& code_length_table,int max_code_len)
+void HuffmanBuilder::deflate_code_length(std::vector<uint16_t>& code_length_table, int max_code_len)
 {
-    std::vector<uint8_t> code_len_to_num_apearances(max_code_len, 0);
+    std::vector<uint32_t> code_len_to_num_apearances(max_code_len, 0);
     int num_overflow = 0;
 
     // count how many symbols are there for each code len
-    for (unsigned short i : code_length_table)
+    for (unsigned short len : code_length_table)
     {
-        if (i <= max_code_len && i > 0)
+        if (len <= max_code_len && len > 0)
         {
-            code_len_to_num_apearances[i - 1] += 1;
+            code_len_to_num_apearances[len - 1] += 1;
         }
-        if (i > max_code_len)
+        if (len > max_code_len)
         {
             code_len_to_num_apearances[max_code_len - 1] += 1;
             num_overflow++;
         }
     }
+
+    // deflating the code lenghts
+    int k = max_code_len - 1;
+    while (num_overflow > 0)
+    {
+        if (code_len_to_num_apearances[k - 1] == 0)
+        {
+            k--;
+            continue;
+        }
+
+        code_len_to_num_apearances[max_code_len - 1]--;
+        code_len_to_num_apearances[k - 1]--;
+        code_len_to_num_apearances[k] += 2;
+        if (k < max_code_len - 1) k++;
+        num_overflow--;
+    }
+
+    // defining a symbol and code len pair
+    struct Symbol_len_Pair
+    {
+        Symbol_len_Pair(uint16_t symbol, uint8_t num_bits): symbol(symbol), len(num_bits) {}
+
+        bool operator <(const Symbol_len_Pair& other) const
+        {
+            if (len != other.len)
+                return len < other.len;
+            return symbol < other.symbol;
+        }
+
+        uint16_t symbol;
+        uint8_t len;
+    };
+
+    // sort the symbols by their original lenghts
+    std::vector<Symbol_len_Pair> symbol_len_table;
+    for (int i = 0; i < code_length_table.size(); i++)
+    {
+        if (code_length_table[i] > 0)
+        {
+            symbol_len_table.emplace_back(i, code_length_table[i]);
+        }
+    }
+    std::sort(symbol_len_table.begin(), symbol_len_table.end());
+
+    // update the codelengths in the order of the original code lengths
+    int j = 0;
+    for (auto& symbol_len_pair : symbol_len_table)
+    {
+        while (j < max_code_len && code_len_to_num_apearances[j] == 0)
+        {
+            j++;
+        }
+
+        if (j >= max_code_len) break;
+
+        symbol_len_pair.len = j + 1;
+        code_len_to_num_apearances[j]--;
+    }
+
+    // updating to the new code lenghts
+    for (const auto& symbol_len : symbol_len_table)
+    {
+        code_length_table[symbol_len.symbol] = symbol_len.len;
+    }
 }
 
 
-std::vector<HuffmanCode> HuffmanBuilder::create_canonial_huffman_code(const std::vector<uint8_t>& code_len_table)
+std::vector<HuffmanCode> HuffmanBuilder::create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table)
 {
         // TODO small explenation on the algorithm of building the canonial huffman tree
 

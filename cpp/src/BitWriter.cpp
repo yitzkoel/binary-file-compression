@@ -4,7 +4,6 @@
 
 #include "BitWriter.h"
 
-#include <cstring>
 
 BitWriter::BitWriter(uint8_t* buffer):buffer(buffer), iter(buffer), offset(0)
 {
@@ -30,10 +29,8 @@ void BitWriter::write_bits_to_buffer(uint64_t src, uint8_t num_bits)
 
 void BitWriter::write_byte_array(const uint8_t* src, size_t num_bytes)
 {
-    for(size_t i = 0; i < num_bytes; i++, iter++)
-    {
-        *iter = src[i];
-    }
+    memcpy(iter, src, num_bytes);
+    iter+=num_bytes;
 }
 
 size_t BitWriter::num_bytes_writen_to_buffer()

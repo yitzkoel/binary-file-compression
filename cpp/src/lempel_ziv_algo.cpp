@@ -4,8 +4,10 @@
 
 #include "../include/lempel_ziv_algo.h"
 
-void Lempel_ziv_algo::compress(const std::string& file_path)
+CodedVec Lempel_ziv_algo::compress(const std::string& file_path)
 {
+    CodedVec code_vec;
+
     auto input_file = binary_io::FileReader(file_path);
     buffer = input_file.get_buffer();
 
@@ -22,9 +24,9 @@ void Lempel_ziv_algo::compress(const std::string& file_path)
                 // add window and distance index
 
                 // the window length with the offset
-                coded_vec.push_back(len_window + WINDOW_OFFSET);
+                code_vec.push_back(len_window + WINDOW_OFFSET);
                 // the distance to the window from the current index
-                coded_vec.push_back(index_in_buffer - start_window_index);
+                code_vec.push_back(index_in_buffer - start_window_index);
 
                 // update index in the buffer
                 index_in_buffer += len_window;
@@ -33,17 +35,17 @@ void Lempel_ziv_algo::compress(const std::string& file_path)
             else
             {
                 // addind literal
-                coded_vec.push_back(literal);
+                code_vec.push_back(literal);
 
                 // update index in the buffer
                 index_in_buffer++;
             }
         }
     }
-
+   return code_vec;
 }
 
-void Lempel_ziv_algo::decompress(const std::string& file_path)
+void Lempel_ziv_algo::decompress(const std::string& file_path, CodedVec code_vec)
 {
     binary_io::FileWriter output_file(file_path);
 
@@ -51,16 +53,16 @@ void Lempel_ziv_algo::decompress(const std::string& file_path)
     uint64_t index_in_coded_vec = 0;
 
     // read the coded vec
-    while (index_in_coded_vec < coded_vec.size())
+    while (index_in_coded_vec < code_vec.size())
     {
-        uint32_t val = coded_vec[index_in_coded_vec];
+        uint32_t val = code_vec[index_in_coded_vec];
         index_in_coded_vec++;
 
         // case 1: the current bit is 1:  the cuurent value in the coded vector is a literal
         if (val <= 255)
         {
             // write into the buffer the current literal in coded vec
-            (*buffer)[index_in_buffer] = val;
+            buffer[index_in_buffer] = val;
 
             // update index
             index_in_buffer++;
@@ -70,30 +72,30 @@ void Lempel_ziv_algo::decompress(const std::string& file_path)
         {
             // read the next two values in the coded vec that code the start index of the window and the window length
             len_window =  val - WINDOW_OFFSET;
-            start_window_index = index_in_buffer - coded_vec[index_in_coded_vec];
+            start_window_index = index_in_buffer - code_vec[index_in_coded_vec];
             index_in_coded_vec++;
             // TODO safty check did we accedently passed the vec size or the bitmap and so on?
 
             // case 1: the window is all in the past safe to use memcpy and faster
             if (start_window_index + len_window <= index_in_buffer)
                 memcpy(
-                    buffer->data() + index_in_buffer, buffer->data() + start_window_index, len_window);
+                    buffer + index_in_buffer, buffer + start_window_index, len_window);
 
             // case 2: the window overlap the place we write into there for we need to copy byte by byte to avoid corruption of the data.
             else
             {
                 for (uint64_t i = 0; i < len_window; i++)
                 {
-                    (*buffer)[index_in_buffer + i] = (*buffer)[start_window_index + i];
+                    buffer[index_in_buffer + i] = buffer[start_window_index + i];
                 }
             }
 
             index_in_buffer += len_window;
         }
 
-        if (index_in_buffer == buffer->size())
+        if (index_in_buffer == BUFFER_SIZE)
         {
-            output_file.flush_buffer_to_file(buffer->size());
+            output_file.flush_buffer_to_file(BUFFER_SIZE);
             index_in_buffer = 0;
         }
     }
@@ -104,7 +106,6 @@ void Lempel_ziv_algo::decompress(const std::string& file_path)
 void Lempel_ziv_algo::clear()
 {
      buffer = nullptr;
-     coded_vec.clear();
 
     // the hash map
      hash_map.clear();
@@ -126,13 +127,13 @@ bool Lempel_ziv_algo::find_window()
     // if the potential window size is at most 3 it is not worth the compression
     if(max_window_size < 4)
     {
-        literal = (*buffer)[index_in_buffer];
+        literal = buffer[index_in_buffer];
         return false;
     }
 
     // calculate the hash map for the 4 next bytes in the buffer
     uint32_t next_four_bytes = 0;
-    std::memcpy(&next_four_bytes, buffer->data() + index_in_buffer, 4);
+    std::memcpy(&next_four_bytes, buffer + index_in_buffer, 4);
 
     // get iterator to the cyclic map of all previous potential matches
     auto iter = hash_map.find(next_four_bytes);
@@ -180,7 +181,7 @@ bool Lempel_ziv_algo::find_window()
 
         // add the new entry hash map cyclic array this current index.
         hash_map.find(next_four_bytes)->add_elem(index_in_buffer);
-        literal = (*buffer)[index_in_buffer];
+        literal = buffer[index_in_buffer];
 
         // return failed to find a window
         return false;
@@ -210,8 +211,8 @@ uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_sta
     // we will attempt comparint the windows 32 bytes at a time
     if (max_window_size >= 32)
     {
-        while (memcmp(buffer->data() + index_in_buffer + max_window_len,
-                      buffer->data() + index_to_start_searching + max_window_len,
+        while (memcmp(buffer + index_in_buffer + max_window_len,
+                      buffer + index_to_start_searching + max_window_len,
                       len) == 0)
         {
             max_window_len += 32;
@@ -236,8 +237,8 @@ uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_sta
         }
 
         // else we can do the comparison
-        if (memcmp(buffer->data() + index_in_buffer + max_window_len,
-            buffer->data() + index_to_start_searching + max_window_len,
+        if (memcmp(buffer + index_in_buffer + max_window_len,
+            buffer + index_to_start_searching + max_window_len,
             len) == 0)
         {
             max_window_len += len;

@@ -34,6 +34,8 @@ struct HuffmanCode
 };
 
 
+
+
 /**
  * create huffman code of max length 32 bits from a generic vector
  */
@@ -44,7 +46,6 @@ public:
   * This is the constructor to the class
   * @param max_code_len the max code length allowed
   */
- explicit HuffmanBuilder(int max_code_len);
 
  HuffmanBuilder() = default;
 
@@ -67,7 +68,7 @@ public:
   HuffmanTree tree((num_symbols * 2) - 1);
 
   // count to each symbol the number of frequencies
-  count_symbol_frequency(tree, data_vec,mapper,num_symbols);
+  count_symbol_frequency(tree, data_vec, mapper, num_symbols);
 
   create_huffman_tree(tree,num_symbols);
 
@@ -93,7 +94,7 @@ public:
 
   HuffmanTree tree = get_huffman_tree(data_vec, mapper,num_symbols);
 
-  std::vector<uint8_t> code_len_table = get_code_len_table(tree, num_symbols);
+  std::vector<uint16_t> code_len_table = get_code_len_table(tree, num_symbols);
 
   deflate_code_length(code_len_table, max_code_len);
 
@@ -105,7 +106,7 @@ public:
   * @param code_len_table a table that maps each symbol to its code lenght
   * @return the huffman code to each symbol that has lenght that is non zero.
   */
- static std::vector<HuffmanCode> get_canonial_huffman_code(const std::vector<uint8_t>& code_len_table, int max_code_len);
+ static std::vector<HuffmanCode> get_canonial_huffman_code(const std::vector<uint16_t>& code_len_table, int max_code_len);
 
  static std::vector<uint8_t> get_code_len_table(std::vector<HuffmanCode>& huffman_code);
 
@@ -121,7 +122,7 @@ private:
   * @param mapper
   */
  template <typename VType, typename MapperFunc>
- void count_symbol_frequency(HuffmanTree& tree, const DataVec<VType>& data_vec, MapperFunc mapper,int num_symbols)
+ static void count_symbol_frequency(HuffmanTree& tree, const DataVec<VType>& data_vec, MapperFunc mapper,int num_symbols)
  {
   // calculate the frequency of each symbol
   for (uint32_t i = 0; i < data_vec.size(); i++)
@@ -129,7 +130,7 @@ private:
    uint32_t symbol = mapper(data_vec[i]);
    assert(symbol < num_symbols && "CRITICAL: Mapper returned a symbol out of bounds!");
 
-   tree[i].frequency++;
+   tree[symbol].frequency++;
   }
  }
 
@@ -145,19 +146,16 @@ private:
   * @param table_size the size of the table
   * @return a table that maps each symbol to its code length
   */
- static std::vector<uint8_t> get_code_len_table(HuffmanTree& tree, uint32_t table_size);
+ static std::vector<uint16_t> get_code_len_table(HuffmanTree& tree, uint32_t table_size);
 
  /**
   * This function deflates the table to hold lengths that are not longer then max_code_len,
   * while maintaining the craft inequality therefore allowing to create a canonial huffman code.
   * @param code_length_table the table to deflate
   */
-  static void deflate_code_length(std::vector<uint8_t>& code_length_table, int max_code_len);
+  static void deflate_code_length(std::vector<uint16_t>& code_length_table, int max_code_len);
 
-  [[nodiscard]] static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint8_t>& code_len_table) ;
-
-
-
+  [[nodiscard]] static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table) ;
 };
 
 #endif //HUFFMANCODE_H

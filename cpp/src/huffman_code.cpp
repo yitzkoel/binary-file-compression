@@ -7,7 +7,6 @@
 
 // TODO implemetnt securaty mesures for example prevent ZIP bomb
 
-
 Huffman_code::Huffman_code()
 {
     // setup symbolToLenRange_table
@@ -185,10 +184,10 @@ void Huffman_code::decode_distance(::CodedVec& coded_vec, uint8_t symbol, BitRea
     return coded_vec;
 }
 
-std::vector<uint8_t> Huffman_code::read_code_len_table(size_t num_symbols, BitReader& bit_reader)
+std::vector<uint16_t> Huffman_code::read_code_len_table(size_t num_symbols, BitReader& bit_reader)
 {
     // the vector to put the lengths in
-    std::vector<uint8_t> code_len_table;
+    std::vector<uint16_t> code_len_table;
 
     // iterate to fill the vector with the code lengths
     for (size_t i = 0; i < num_symbols; i++)
@@ -205,7 +204,7 @@ std::vector<uint8_t> Huffman_code::read_code_len_table(size_t num_symbols, BitRe
 std::vector<Decode> Huffman_code::create_15bit_to_symbol_table(const int num_symbols, BitReader& bit_reader)
 {
     // get the code lengths of each symbol and put it in a table
-    std::vector<uint8_t> code_length_table = read_code_len_table(num_symbols, bit_reader);
+    std::vector<uint16_t> code_length_table = read_code_len_table(num_symbols, bit_reader);
 
     // get the canonial code for each tree
     // map from symbol(index of the vector) to (len,binary_code)
@@ -261,7 +260,7 @@ void Huffman_code::compress_block(::CodedVec& coded_vec, uint32_t num_bytes_in_b
     // seperate the vectors
     ::CodedVec literal_and_len_vec;
     ::CodedVec distance_vec;
-    seperate_vecs(literal_and_len_vec, distance_vec);
+    split_vec(literal_and_len_vec, distance_vec, coded_vec);
 
     // create the code
     std::vector<HuffmanCode> literalLen_code = HuffmanBuilder::get_canonial_huffman_code(
@@ -379,6 +378,15 @@ void Huffman_code::create_windowLenToCode_table(
         windowLenToCode[window_len].huffman_len = canonial_code[symbol].len_code;
         windowLenToCode[window_len].extra_bits_val = extra_bit_val;
         windowLenToCode[window_len].extra_bits_len = std::__bit_width(extra_bit_val);
+    }
+}
+
+void Huffman_code::split_vec(CodedVec& literal_and_len_vec, CodedVec& distance_vec, const CodedVec& coded_vec)
+{
+    for(size_t i = 0; i < coded_vec.size(); i++)
+    {
+        literal_and_len_vec.push_back(coded_vec[i]);
+        if(coded_vec[i] > 255) distance_vec.push_back(coded_vec[++i]);
     }
 }
 

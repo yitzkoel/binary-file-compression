@@ -17,7 +17,6 @@ protected:
     LempelZivTest():
         compressor()
     {
-        compressor.buffer = std::make_shared<std::array<uint8_t, BUFFER_SIZE>>();
     }
 
     void set_literal(uint64_t literal)
@@ -31,27 +30,17 @@ protected:
         compressor.len_window = len_window;
     }
 
-    void add_window_to_vec()
+    void add_window_to_vec(CodedVec& coded_vec) const
     {
-        compressor.coded_vec.push_back((compressor.len_window));
-        compressor.coded_vec.push_back((compressor.start_window_index));
+        coded_vec.push_back((compressor.len_window));
+        coded_vec.push_back((compressor.start_window_index));
     }
 
-    void add_literal_to_vec()
+    void add_literal_to_vec(CodedVec& coded_vec) const
     {
-        compressor.coded_vec.push_back(compressor.literal);
+        coded_vec.push_back(compressor.literal);
     }
 
-    std::vector<uint32_t>& get_coded_vec()
-    {
-        return compressor.coded_vec;
-    }
-
-
-    void set_coded_vec(std::vector<uint32_t>& coded_vec)
-    {
-        compressor.coded_vec = std::move(coded_vec);
-    }
 
 
     static void create_input_file(const std::string& content, const std::string& file_path)
@@ -65,7 +54,7 @@ protected:
     {
         for (int i = 0; i < data.size(); i++)
         {
-            (*compressor.buffer)[i] = data[i];
+            compressor.buffer[i] = data[i];
         }
 
         compressor.num_bytes_read = data.size();
@@ -125,14 +114,17 @@ protected:
 
 TEST_F(LempelZivTest, AddingToCodedVec)
 {
+    CodedVec coded_vec;
+
     this->set_window(50, 25);
-    this->add_window_to_vec();
+    this->add_window_to_vec(coded_vec);
+
 
 
     this->set_literal(100);
-    this->add_literal_to_vec();
+    this->add_literal_to_vec(coded_vec);
 
-    auto coded_vec = this->get_coded_vec();
+
 
     EXPECT_EQ(coded_vec.back(), 100);
     coded_vec.pop_back();
@@ -384,7 +376,7 @@ TEST_F(LempelZivTest, TestCyclic_Array_Overflow)
 
 TEST_F(LempelZivTest, TestBasicCompression)
 {
-    std::vector<uint8_t> buffer_data =
+    std::vector<uint32_t> buffer_data =
     {
         'a', 'a', 'b', 'a', 'a', 'b', 'a', 'a', 'c', 'd', 'c', 'd', 'c', 'd', 'd',
         'a', 'b', 'c', 'e', 'a', 'b', 'c', 'e', 'd', 'a', 'a', 'b', 'a', 'a', 'c', 'f', 'g'
@@ -404,9 +396,9 @@ TEST_F(LempelZivTest, TestBasicCompression)
     file.write(reinterpret_cast<const char*>(buffer_data.data()), buffer_data.size());
     file.close();
 
-    compressor.compress(file_path);
 
-    auto& res_coded_vec = get_coded_vec();
+
+    auto res_coded_vec = compressor.compress(file_path);
 
     EXPECT_EQ(expected_coded_vec.size(), res_coded_vec.size());
     for (int i = 0; i < expected_coded_vec.size(); i++)
@@ -429,10 +421,8 @@ TEST_F(LempelZivTest, TestBasicDecompression)
     };
 
 
-    set_coded_vec(coded_vec);
-
     std::string file_path = "basicDecompressionTest.bin";
-    compressor.decompress(file_path);
+    compressor.decompress(file_path,coded_vec);
 
     std::ifstream file(file_path, std::ios::binary);
     ASSERT_TRUE(file.is_open()) << "Failed to create test file: " << file_path;
@@ -471,8 +461,8 @@ TEST_F(LempelZivTest, TestOnRealFilesCompressionAndDecompression)
         std::string res_file_name = "res_" + base_name;
         compressor.clear();
 
-        compressor.compress(file_name);
-        compressor.decompress(res_file_name);
+        auto code_vec = compressor.compress(file_name);
+        compressor.decompress(res_file_name, code_vec);
 
 
         EXPECT_EQ(std::filesystem::file_size(file_name) , std::filesystem::file_size(res_file_name));
@@ -488,7 +478,7 @@ TEST_F(LempelZivTest, TestOnRealFilesCompressionAndDecompression)
 
             for(size_t j = 0 ; j < file.get_num_bytes_read(); j++)
             {
-                EXPECT_EQ((*file_buffer)[j], (*res_file_buffer)[j]);
+                EXPECT_EQ(file_buffer[j], res_file_buffer[j]);
             }
         }
 

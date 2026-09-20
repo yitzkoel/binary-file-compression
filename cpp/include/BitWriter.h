@@ -5,9 +5,8 @@
 #ifndef BITWRITER_H
 #define BITWRITER_H
 #include <cstdint>
-
-
-#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
 
 class BitWriter

@@ -33,21 +33,21 @@ struct DistanceEncodeInfo
 
 struct Decode
 {
-    Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
-    {
-    }
+ Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
+ {
+ }
 
-    Decode(): symbol(-1), num_bits(-1)
-    {
-    }
+ Decode(): symbol(-1), num_bits(-1)
+ {
+ }
 
-    bool operator <(const Decode& other) const
-    {
-        return num_bits < other.num_bits;
-    }
+ bool operator <(const Decode& other) const
+ {
+  return num_bits < other.num_bits;
+ }
 
-    uint8_t symbol;
-    uint8_t num_bits;
+ uint8_t symbol;
+ uint8_t num_bits;
 };
 
 /**
@@ -184,12 +184,14 @@ private:
     //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
     ::CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
+
+
     /**
      * this function codes into binary the the coded vec into a block and writes it into the file.
      * @param coded_vec the coded vec of this block
      * @param num_bytes_compressed_in_block the number of bytes of the original uncompressed file this block compresses
      */
-    void compress_block(CodedVec& coded_vec, uint32_t num_bytes_compressed_in_block, BitWriter& bit_writer);
+    static void compress_block(CodedVec& coded_vec, uint32_t num_bytes_compressed_in_block, BitWriter& bit_writer);
 
     static uint32_t literal_and_window_mapper(uint32_t val);
 
@@ -208,7 +210,7 @@ private:
      *
      * @return the Decoding vector
      */
-    std::vector<Decode> create_15bit_to_symbol_table(int num_symbols, BitReader& bit_reader);
+    static std::vector<Decode> create_15bit_to_symbol_table(int num_symbols, BitReader& bit_reader);
 
     /**
      * This function extracts the length table from the block's code.
@@ -216,7 +218,7 @@ private:
      * @param num_symbols the number of symbols to extract their length
      * @return a vector that maps each symbol(the index) to its prefix free code length
      */
-    static std::vector<uint8_t> read_code_len_table(size_t num_symbols, BitReader& bit_reader);
+    static std::vector<uint16_t> read_code_len_table(size_t num_symbols, BitReader& bit_reader);
 
     /**
      *  This function gets the current symbol read that encodes a window length, and reads from the buffer the
@@ -242,7 +244,7 @@ private:
      * @param file_reader the file to read the new data from
      * @param bit_reader the handle to read single bits out of the file
      */
-    void read_new_data_into_buffer(binary_io::FileReader& file_reader, BitReader& bit_reader);
+    static void read_new_data_into_buffer(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
     /**
      * This function fills in the field 'windowLengthToCode' which is a table that lets us access in O(1) all the
@@ -253,6 +255,8 @@ private:
      * @param canonial_code the prefix free code for each symbol
      */
     static void create_windowLenToCode_table(const std::vector<HuffmanCode>& canonial_code);
+
+ static void split_vec(CodedVec& literal_and_len_vec, CodedVec& distance_vec, const CodedVec& coded_vec);
     //############## DATA STRUCTURES METHODS ################
 
 

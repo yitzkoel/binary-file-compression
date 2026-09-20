@@ -5,6 +5,7 @@
 #ifndef BITREADER_H
 #define BITREADER_H
 #include <cstdint>
+#include <cstddef>
 
 
 class BitReader {
