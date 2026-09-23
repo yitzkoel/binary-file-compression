@@ -33,25 +33,25 @@ struct DistanceEncodeInfo
 
 struct Decode
 {
- Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
- {
- }
+    Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
+    {
+    }
 
- Decode(): symbol(-1), num_bits(-1)
- {
- }
+    Decode(): symbol(-1), num_bits(-1)
+    {
+    }
 
- bool operator <(const Decode& other) const
- {
-  return num_bits < other.num_bits;
- }
+    bool operator <(const Decode& other) const
+    {
+        return num_bits < other.num_bits;
+    }
 
- uint8_t symbol;
- uint8_t num_bits;
+    uint8_t symbol;
+    uint8_t num_bits;
 };
 
 /**
- * @class huffman_code
+ * @class Huffman_code
  *
  * @brief This class holds all the logic to encode LZSS vector into a binary file using
  *        Canonical Huffman coding, and to decode the binary file back into LZSS vector.
@@ -141,12 +141,10 @@ public:
      *
      * @param file_path the file path to dump the compressed file into
      * @param coded_vecs the vector that hold the lempel ziv compression (each vector corespondes to a block of at most 4MB of the file)
-     * @param num_bytes_in_block_before_compression holds to each vector in coded_vecs the number of bytes in the original file it compresses.
      * @param original_file_size the number of bytes of the whole file
      */
-    void compress(const std::string& file_path,
+    static void compress(const std::string& file_path,
                   std::vector<CodedVec>& coded_vecs,
-                  std::vector<uint32_t>& num_bytes_in_block_before_compression,
                   std::uint64_t original_file_size);
 
     /**
@@ -156,7 +154,7 @@ public:
      * @param file_path the file that the compressed file is at
      * @return a vector of coded vecs each coded vec is a block of compressed data.
      */
-    std::vector<CodedVec> decompress(const std::string& file_path);
+    static std::vector<CodedVec> decompress(const std::string& file_path);
 
     /**
      * Rests the data structures that this object holds for a new compression.
@@ -165,7 +163,9 @@ public:
     void clear();
 
 private:
-    //#################### FUNCTION TO WRITE INTO THE FILE #####################
+    //-----------------------------------------------------------------
+    // FUNCTION TO WRITE INTO THE FILE
+    //-----------------------------------------------------------------
     /**
      * this function codes a vector that was coded using lempel ziv into binary code using huffman code
      * @param coded_vec the coded vec to code into binary.
@@ -175,31 +175,31 @@ private:
      * @return the number of bytes needed to compress this vec
      */
     static void code_vec(const ::CodedVec& coded_vec,
-                               std::vector<HuffmanCode>& literalLen_code,
-                               std::vector<HuffmanCode>& distance_code,
-                               BitWriter& bit_writer);
-    //#################### FUNCTION TO WRITE INTO THE FILE #####################
+                         std::vector<HuffmanCode>& literalLen_code,
+                         std::vector<HuffmanCode>& distance_code,
+                         BitWriter& bit_writer);
 
 
-    //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
-    ::CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
-
+    //-----------------------------------------------------------------
+    // HUFFMAN BINARY CODE HELPER FUNCTIONS
+    //-----------------------------------------------------------------
+    static::CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
 
     /**
      * this function codes into binary the the coded vec into a block and writes it into the file.
      * @param coded_vec the coded vec of this block
-     * @param num_bytes_compressed_in_block the number of bytes of the original uncompressed file this block compresses
      */
-    static void compress_block(CodedVec& coded_vec, uint32_t num_bytes_compressed_in_block, BitWriter& bit_writer);
+    static void compress_block(CodedVec& coded_vec, BitWriter& bit_writer);
 
     static uint32_t literal_and_window_mapper(uint32_t val);
 
     static uint32_t distance_mapper(uint32_t val);
-    //############# HUFFMAN BINARY CODE HELPER FUNCTIONS########################
 
 
-    //############## DATA STRUCTURES METHODS ################
+    //-----------------------------------------------------------------
+    // DATA STRUCTURES METHODS
+    //-----------------------------------------------------------------
     static uint16_t map_window_len_to_symbol(uint32_t window_len);
 
     static DistanceEncodeInfo map_distance_to_symbol(uint32_t val);
@@ -256,27 +256,29 @@ private:
      */
     static void create_windowLenToCode_table(const std::vector<HuffmanCode>& canonial_code);
 
- static void split_vec(CodedVec& literal_and_len_vec, CodedVec& distance_vec, const CodedVec& coded_vec);
-    //############## DATA STRUCTURES METHODS ################
+    static void split_vec(CodedVec& literal_and_len_vec, CodedVec& distance_vec, const CodedVec& coded_vec);
 
 
-    //#################### FIELDS ###################
+    //-----------------------------------------------------------------
+    // FIELDS
+    //-----------------------------------------------------------------
+
     static const int MAX_CODE_LEN = 15;
-    const static uint8_t EOF_SYMBOL;
-    static const uint16_t WINDOW_OFFSET = 257;
+    static const uint8_t EOF_SYMBOL = 256;
+    static const uint16_t WINDOW_SYMBOL_OFFSET_IN_TABLE = 257;
 
     // number of symbols in each huffman tree
-    static const int LITERAL_AND_LEN_NUM_SYMBOLS = 285;
+    static const int LITERAL_AND_LEN_NUM_SYMBOLS = 286;
     static const int DISTANCE_NUM_SYMBOLS = 56;
 
     // maps from symbol of the huffman code to the range of number it represents
     static std::array<uint32_t, LITERAL_AND_LEN_NUM_SYMBOLS> symbolToLenRange_table;
     static std::array<uint32_t, DISTANCE_NUM_SYMBOLS> symbolToDistanceRange_table;
-
-    static std::array<WindowLengthToCode, 2069> windowLenToCode;
+ 
+    static const int  MAX_WINDOW_SIZE = (1<<11) + 22;
+    static std::array<WindowLengthToCode, MAX_WINDOW_SIZE + 4 > windowLenToCode;
 
     static std::array<uint8_t, LITERAL_AND_LEN_NUM_SYMBOLS - 256> symbol_to_len_num_extra_bits;
     static std::array<uint8_t, DISTANCE_NUM_SYMBOLS> symbol_to_dist_num_extra_bits;
-    //#################### FIELDS ###################
 };
 #endif //HUFFMAN_CODE_H

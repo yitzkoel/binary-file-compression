@@ -20,7 +20,8 @@ std::vector<HuffmanCode> HuffmanBuilder::get_canonial_huffman_code(const std::ve
 std::vector<uint8_t> HuffmanBuilder::get_code_len_table(std::vector<HuffmanCode>& huffman_code)
 {
     std::vector<uint8_t> code_len_table;
-    for(auto& code : huffman_code)
+    code_len_table.reserve(huffman_code.size());
+for(auto& code : huffman_code)
     {
         code_len_table.push_back(code.len_code);
     }

@@ -10,50 +10,76 @@
 Huffman_code::Huffman_code()
 {
     // setup symbolToLenRange_table
+    // setup symbol_to_len_num_extra_bits table
     uint32_t jump = 1;
     uint8_t extra_bit_len = 0;
     for (int i = 0; i < LITERAL_AND_LEN_NUM_SYMBOLS; i++)
     {
         // if we are at the literal and EOF symbols add the same value to the table
-        if (i <= 255)
+        if (i <= 256)
         {
             symbolToLenRange_table[i] = i;
             continue;
         }
-        // if we are at the symbols that represend window lenght are from index 257 - 285 then:
 
+        // if we are at the symbols that represend window lengths in the table then we are from index
+        // 257 - 285 in the table and then:
 
-        int window_len_symbol = i - 256;
+        int window_len_symbol = i - 257; //normalize the symbols to be from 0 to 27 (28 symbols).
+
         // if we are the first 18 window len symbols then we just keep the length of that symbol from 4 to 22
         if (window_len_symbol <= 18)
         {
             symbolToLenRange_table[i] = 4 + window_len_symbol;
             symbol_to_len_num_extra_bits[window_len_symbol] = extra_bit_len;
         }
-        // else we are at the ranges: 2, 4, 8, 16, 32, 64, 128, 265, 512, 1024 (plus the base 22) 
+
+        // else we are at the ranges: 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024-2068 (plus the base 22)
         else
         {
             symbolToLenRange_table[i] = symbolToLenRange_table[i - 1] + jump;
             jump = jump << 1; // mult by 2
 
+            // each jump increases the range by 1 bit since we have multiple of 2 each time
             symbol_to_len_num_extra_bits[window_len_symbol] = ++extra_bit_len;
         }
     }
 
 
     // setup symbolToDistanceRange_table
+    // setup symbol_to_dist_num_extra_bits table
+
+    // In the LZ-Huffman implementation used by this engine, the first 16 symbols (0-15)
+    // are mapped directly to exact distances (1 to 16) and require no extra bits.
+    // Larger distances are coded into ranges rather than exact values. Since we support a 4MB
+    // sliding window, building a Huffman tree with 4 million distinct symbols is impractical
+    // (both due to tree encoding overhead and compression speed).
+    // Therefore, the ranges are scaled with exponential growth, under the assumption that as
+    // the distance grows, the probability of finding a match decreases. This is based on
+    // empirical evidence found in modern compressors and the specific matching logic of
+    // the LZ stage I wrote.
     jump = 1;
     extra_bit_len = 0;
     for (int i = 0; i < DISTANCE_NUM_SYMBOLS; i++)
     {
+        // first 16 distances are without range and we just add the actual value to the tables
         if (i < 16)
         {
             symbolToDistanceRange_table[i] = i + 1;
             symbol_to_dist_num_extra_bits[i] = extra_bit_len;
         }
+
+
         else
         {
+            // For symbols 16 and above, distances are grouped into ranges.
+            // The base distance for the current symbol is the previous base plus the current range size ('jump')
             symbolToDistanceRange_table[i] = symbolToDistanceRange_table[i - 1] + jump;
+
+            // To keep the Huffman tree balanced, the range size grows exponentially.
+            // Every pair of symbols shares the same number of extra bits.
+            // After evaluating an even-indexed symbol, we double the range size (jump)
+            // and add 1 more extra bit for the next pair of symbols..
             if (i % 2 == 0)
             {
                 jump = jump << 1;
@@ -62,13 +88,10 @@ Huffman_code::Huffman_code()
             symbol_to_dist_num_extra_bits[i] = extra_bit_len;
         }
     }
-
-    // TODO fill in the fields of the tables num_extra_bytes
 }
 
 void Huffman_code::compress(const std::string& file_path,
                             std::vector<::CodedVec>& coded_vecs,
-                            std::vector<uint32_t>& num_bytes_in_block_before_compression,
                             std::uint64_t original_file_size)
 {
     // init the file_writer and bit writer
@@ -83,7 +106,7 @@ void Huffman_code::compress(const std::string& file_path,
     // compress the data
     for (int i = 0; i < coded_vecs.size(); i++)
     {
-        compress_block(coded_vecs[i], num_bytes_in_block_before_compression[i], bit_writer);
+        compress_block(coded_vecs[i], bit_writer);
 
         // flush the block onto the file and clear the buffer
         file_writer.flush_buffer_to_file(bit_writer.num_bytes_writen_to_buffer());
@@ -108,11 +131,11 @@ std::vector<CodedVec> Huffman_code::decompress(const std::string& file_path)
     bit_reader.set_safe_end(file_reader.get_num_bytes_read() - 8);
 
     // first 8 bytes hold the original file size
-    uint64_t original_file_size = bit_reader.read_bits_from_buffer(sizeof(uint64_t) * 8);
+    uint64_t original_file_size = bit_reader.peak_bits(sizeof(uint64_t) * 8);
     bit_reader.advance_buffer(sizeof(uint64_t) * 8);
 
     // second 8 bytes hold the number of blocks coded
-    uint64_t num_bloks = bit_reader.read_bits_from_buffer(sizeof(uint64_t) * 8);
+    uint64_t num_bloks = bit_reader.peak_bits(sizeof(uint64_t) * 8);
     bit_reader.advance_buffer(sizeof(uint64_t) * 8);
 
     // this var tracks the number of bytes in the original file we uncompressed so far
@@ -127,7 +150,7 @@ std::vector<CodedVec> Huffman_code::decompress(const std::string& file_path)
 
 void Huffman_code::decode_window_length(::CodedVec& coded_vec, uint8_t symbol, BitReader& bit_reader)
 {
-    uint32_t extra_val = bit_reader.read_bits_from_buffer(symbol_to_len_num_extra_bits[symbol]);
+    uint32_t extra_val = bit_reader.peak_bits(symbol_to_len_num_extra_bits[symbol]);
     bit_reader.advance_buffer(symbol_to_len_num_extra_bits[symbol]);
     uint32_t val = extra_val + symbolToLenRange_table[symbol];
 
@@ -136,7 +159,7 @@ void Huffman_code::decode_window_length(::CodedVec& coded_vec, uint8_t symbol, B
 
 void Huffman_code::decode_distance(::CodedVec& coded_vec, uint8_t symbol, BitReader& bit_reader)
 {
-    uint32_t extra_val = bit_reader.read_bits_from_buffer(symbol_to_dist_num_extra_bits[symbol]);
+    uint32_t extra_val = bit_reader.peak_bits(symbol_to_dist_num_extra_bits[symbol]);
     bit_reader.advance_buffer(symbol_to_dist_num_extra_bits[symbol]);
     uint32_t val = extra_val + symbolToDistanceRange_table[symbol];
 
@@ -160,11 +183,11 @@ void Huffman_code::decode_distance(::CodedVec& coded_vec, uint8_t symbol, BitRea
         }
 
         // get the next 15 bits in the buffer
-        uint16_t next_chunk = bit_reader.read_bits_from_buffer(15);
+        uint16_t next_chunk = bit_reader.peak_bits(15);
         bit_reader.advance_buffer(map_15bit_lit_len[next_chunk].num_bits);
         uint8_t symbol = map_15bit_lit_len[next_chunk].symbol;
 
-        if(symbol == EOF_SYMBOL) break; // we reached the end of the vector
+        if (symbol == EOF_SYMBOL) break; // we reached the end of the vector
 
         if (symbol < 256) coded_vec.push_back(symbol);
 
@@ -174,7 +197,7 @@ void Huffman_code::decode_distance(::CodedVec& coded_vec, uint8_t symbol, BitRea
             decode_window_length(coded_vec, symbol, bit_reader);
 
             // next we encode distance
-            next_chunk = bit_reader.read_bits_from_buffer(15);
+            next_chunk = bit_reader.peak_bits(15);
             bit_reader.advance_buffer(map_15bit_dist[next_chunk].num_bits);
             symbol = map_15bit_dist[next_chunk].symbol;
 
@@ -192,7 +215,7 @@ std::vector<uint16_t> Huffman_code::read_code_len_table(size_t num_symbols, BitR
     // iterate to fill the vector with the code lengths
     for (size_t i = 0; i < num_symbols; i++)
     {
-        uint64_t len = bit_reader.read_bits_from_buffer(8);
+        uint64_t len = bit_reader.peak_bits(8);
 
         bit_reader.advance_buffer(8);
 
@@ -250,9 +273,7 @@ void Huffman_code::read_new_data_into_buffer(binary_io::FileReader& file_reader,
     bit_reader.set_safe_end(file_reader.get_num_bytes_read() - 8);
 }
 
-
-void Huffman_code::compress_block(::CodedVec& coded_vec, uint32_t num_bytes_in_block_before_compression,
-                                  BitWriter& bit_writer)
+void Huffman_code::compress_block(::CodedVec& coded_vec, BitWriter& bit_writer)
 {
     // Add EOF symbol
     coded_vec.push_back(EOF_SYMBOL);
@@ -285,10 +306,9 @@ void Huffman_code::compress_block(::CodedVec& coded_vec, uint32_t num_bytes_in_b
     code_vec(coded_vec, literalLen_code, distance_code, bit_writer);
 }
 
-
 void Huffman_code::code_vec(const ::CodedVec& coded_vec,
-                                  std::vector<HuffmanCode>& literalLen_code,
-                                  std::vector<HuffmanCode>& distance_code, BitWriter& bit_writer)
+                            std::vector<HuffmanCode>& literalLen_code,
+                            std::vector<HuffmanCode>& distance_code, BitWriter& bit_writer)
 {
     // code the vector
     for (uint32_t i = 0; i < coded_vec.size(); i++)
@@ -309,7 +329,7 @@ void Huffman_code::code_vec(const ::CodedVec& coded_vec,
         else
         {
             // write the code for window len into the buffer
-            uint32_t window_len = val - WINDOW_OFFSET;
+            uint32_t window_len = val - WINDOW_SYMBOL_OFFSET_IN_TABLE;
             bit_writer.write_bits_to_buffer(windowLenToCode[window_len].huffman_code,
                                             windowLenToCode[window_len].huffman_len);
             bit_writer.write_bits_to_buffer(windowLenToCode[window_len].extra_bits_val,
@@ -330,46 +350,64 @@ void Huffman_code::code_vec(const ::CodedVec& coded_vec,
     }
 }
 
-
 uint16_t Huffman_code::map_window_len_to_symbol(uint32_t window_len)
 {
-    // if window lenght is is in the range of [4,22] we just return the symbol is the len minus 4
-    // (because we want it to start at 0) plus the window offset becuase we want the first 257 symbols to be literal and EOF.
-    if (window_len <= 18 + 4) return window_len - 4 + WINDOW_OFFSET;
+    // If window length is in the range of [4, 22], we map it directly.
+    // We subtract 4 to align it to a 0-based index, and add the offset
+    // because the first 257 symbols are reserved for literals and EOF.
+    if (window_len <= 18 + 4)
+    {
+        return window_len - 4 + WINDOW_SYMBOL_OFFSET_IN_TABLE;
+    }
 
-    // else we need to calculate the range we fell in to find the symbol
-    window_len = window_len - 22; // normalizing to the first range jump
-    uint32_t msb = std::bit_width(window_len) - 1; // the number of jumps made(range jumps of *2 each time)
-    return msb + 18 + WINDOW_OFFSET; // the number of jumps plus the number of symbols before it pluss the offset
+    // Otherwise, we calculate the exponent range to find the corresponding symbol.
+    window_len = window_len - 21; // Normalize to the first exponential jump
+    uint32_t msb = std::bit_width(window_len) - 1; // Number of range jumps (*2 each time)
+
+    // Return the number of jumps plus the 18 direct symbols before it, plus the base offset
+    return msb + 18 + WINDOW_SYMBOL_OFFSET_IN_TABLE;
 }
 
 DistanceEncodeInfo Huffman_code::map_distance_to_symbol(uint32_t val)
 {
-    // base case no range in table
+    // Base case: The first 16 distances (1 to 16) map directly to symbols 0 to 15.
+    // They don't require any extra bits.
     if (val <= 16)
     {
         return {val - 1, 0, 0};
     }
-    val = val - 13;
-    uint32_t msb = std::__bit_width(val) - 1;
 
+    // For distances > 16, we use a bitwise trick to find the symbol.
+    // Subtracting 13 aligns the values so that their Most Significant Bit (MSB)
+    // strictly defines the exponential "tier" (group of ranges) they belong to.
+    // (e.g., distances 17-20 fall into the tier where MSB is 2, 21-28 -> MSB is 3, etc.)
+    val = val - 13;
+    uint32_t msb = std::bit_width(val) - 1;
+
+    // Every tier contains exactly two symbols.
+    // We extract the second most significant bit to determine which of the two
+    // symbols in the current tier this distance belongs to (0 for the first, 1 for the second).
     uint8_t b = (val >> (msb - 1)) & 1;
 
     DistanceEncodeInfo info{};
+
+    // Calculate the final symbol:
+    // (msb - 2) * 2 calculates the base index of the tier.
+    // We add 16 to offset the direct symbols we skipped.
+    // Finally, we add 'b' to select the correct symbol inside the pair.
     info.symbol = (((msb - 2) * 2) + 16) + b;
     info.extra_bits_len = msb - 1;
 
+    // The remaining lower bits represent the exact position inside the symbol's range.
     uint32_t mask = (1 << info.extra_bits_len) - 1;
     info.extra_bits_val = val & mask;
 
     return info;
 }
 
-
-void Huffman_code::create_windowLenToCode_table(
-    const std::vector<HuffmanCode>& canonial_code)
+void Huffman_code::create_windowLenToCode_table(const std::vector<HuffmanCode>& canonial_code)
 {
-    for (int window_len = 4; window_len < windowLenToCode.size() + 4; window_len++)
+    for (int window_len = 4; window_len < windowLenToCode.size(); window_len++)
     {
         int symbol = map_window_len_to_symbol(window_len);
         uint32_t extra_bit_val = (window_len) - symbolToLenRange_table[symbol];
@@ -377,16 +415,16 @@ void Huffman_code::create_windowLenToCode_table(
         windowLenToCode[window_len].huffman_code = canonial_code[symbol].huffman_code;
         windowLenToCode[window_len].huffman_len = canonial_code[symbol].len_code;
         windowLenToCode[window_len].extra_bits_val = extra_bit_val;
-        windowLenToCode[window_len].extra_bits_len = std::__bit_width(extra_bit_val);
+        windowLenToCode[window_len].extra_bits_len = symbol_to_len_num_extra_bits[symbol];
     }
 }
 
 void Huffman_code::split_vec(CodedVec& literal_and_len_vec, CodedVec& distance_vec, const CodedVec& coded_vec)
 {
-    for(size_t i = 0; i < coded_vec.size(); i++)
+    for (size_t i = 0; i < coded_vec.size(); i++)
     {
         literal_and_len_vec.push_back(coded_vec[i]);
-        if(coded_vec[i] > 255) distance_vec.push_back(coded_vec[++i]);
+        if (coded_vec[i] > 255) distance_vec.push_back(coded_vec[++i]);
     }
 }
 

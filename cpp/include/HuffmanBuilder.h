@@ -37,16 +37,15 @@ struct HuffmanCode
 
 
 /**
- * create huffman code of max length 32 bits from a generic vector
+ * @brief create huffman code of max length 32 bits from a generic vector.
+ *
+ * This class gets a generic data vector with a mapper function that maps each data elemnt in the vector to a uint32_t
+ * value, and created a binary prefix free huffan code from those symbols.
+ * The entire class is static therfore you just need to insert the parameters and you get the code.
  */
 class HuffmanBuilder
 {
 public:
- /**
-  * This is the constructor to the class
-  * @param max_code_len the max code length allowed
-  */
-
  HuffmanBuilder() = default;
 
  /**
@@ -108,6 +107,11 @@ public:
   */
  static std::vector<HuffmanCode> get_canonial_huffman_code(const std::vector<uint16_t>& code_len_table, int max_code_len);
 
+ /**
+  * this function returns a code len table to a huffman code table.
+  * @param huffman_code the huffman code to get the code len table for
+  * @return the code len table
+  */
  static std::vector<uint8_t> get_code_len_table(std::vector<HuffmanCode>& huffman_code);
 
 
@@ -155,7 +159,15 @@ private:
   */
   static void deflate_code_length(std::vector<uint16_t>& code_length_table, int max_code_len);
 
-  [[nodiscard]] static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table) ;
+ /**
+  * this function uses the canonial huffman code construction to build the a huffman code for the lengths in the len table.
+  * Please note that the len table need to satisfy the kraft inequality and that this method does not verify that for
+  * performance reasons.
+  *
+  * @param code_len_table the code len table to calculate the canonial huffman code from
+  * @return the huffman code
+  */
+ [[nodiscard]] static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table) ;
 };
 
 #endif //HUFFMANCODE_H

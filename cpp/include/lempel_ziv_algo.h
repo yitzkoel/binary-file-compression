@@ -44,7 +44,9 @@ private:
      */
     bool find_window();
 
-
+    //----------------------------------------------
+    // FIELDS
+    //----------------------------------------------
     uint8_t* buffer = nullptr;
     char LEN_WORD = 64;
 
@@ -60,7 +62,7 @@ private:
     uint16_t len_window = 0;
     uint64_t literal = 0;
 
-    inline static const uint64_t MAX_WINDOW_SIZE = (2<<11)+ 22;
+    inline static const uint64_t MAX_WINDOW_SIZE = (1<<11)+ 22;
     inline static const uint16_t WINDOW_OFFSET = 257;
 
     friend class LempelZivTest;

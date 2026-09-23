@@ -8,7 +8,7 @@
 #include<fstream>
 #include <memory>
 
-# define BUFFER_SIZE 2<<22 // 4MB
+# define BUFFER_SIZE 1<<22 // 4MB
 
 namespace binary_io
 {

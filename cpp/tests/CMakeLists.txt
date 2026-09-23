@@ -14,6 +14,8 @@ add_executable(run_unit_tests
         test_lempel_ziv.cpp
         test_hash_table.cpp
         test_huffmanBuilder.cpp
+        test_BitWriter.cpp
+        test_BitReader.cpp
 )
 
 target_link_libraries(run_unit_tests
@@ -21,6 +23,7 @@ target_link_libraries(run_unit_tests
         compressor_lib
         GTest::gtest_main
 )
+
 
 include(GoogleTest)
 gtest_discover_tests(run_unit_tests)
