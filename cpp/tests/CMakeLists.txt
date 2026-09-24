@@ -16,6 +16,7 @@ add_executable(run_unit_tests
         test_huffmanBuilder.cpp
         test_BitWriter.cpp
         test_BitReader.cpp
+        Test_huffman_coder.cpp
 )
 
 target_link_libraries(run_unit_tests

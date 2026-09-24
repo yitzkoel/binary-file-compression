@@ -5,7 +5,6 @@
 #ifndef LEMPEL_ZIV_ALGO_H
 #define LEMPEL_ZIV_ALGO_H
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include <cstring>
 #include <cassert>
@@ -20,7 +19,7 @@ class Lempel_ziv_algo {
 public:
     CodedVec compress(const std::string& file_path);
 
-    void decompress(const std::string& file_path, CodedVec code_vec);
+    void decompress(const std::string& file_path, CodedVec& code_vec);
 
     void clear();
 
@@ -62,8 +61,9 @@ private:
     uint16_t len_window = 0;
     uint64_t literal = 0;
 
-    inline static const uint64_t MAX_WINDOW_SIZE = (1<<11)+ 22;
+    inline static const uint64_t MAX_WINDOW_SIZE = (1<<11) + 20;
     inline static const uint16_t WINDOW_OFFSET = 257;
+    inline static const uint16_t EOF_SYMBOL = 256;
 
     friend class LempelZivTest;
 };

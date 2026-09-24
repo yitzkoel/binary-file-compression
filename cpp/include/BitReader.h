@@ -65,6 +65,16 @@ public:
      */
     uint8_t* get_iter();
 
+  uint8_t get_offset() const
+ {
+  return offset_;
+ }
+
+ uint8_t* get_buffer() const
+  {
+   return  buffer;
+  }
+
     /**
      * this function sets the index of the uint8_t buffer to 'index'.
      * @param index the index in the buffer to set the bit reader to
@@ -109,6 +119,14 @@ public:
     {
         return buffer_iter < safe_end;
     }
+
+    /**
+     * advances the reader to be with offset = 0.
+     * for example if the reader was at index 5 in the buffer and offset 2 then we will advance the index to 6
+     * with offset 0.
+     * Or if the reader was at index 5 in the buffer and offset 0 then we will remiain in index 5 offset 0.
+     */
+    void alighn_reader_to_byte();
 
 private:
     //------------------------------------------------

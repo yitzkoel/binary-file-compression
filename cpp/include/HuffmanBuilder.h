@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <vector>
 #include <type_traits>
+#include <bit>
+#include <queue>
+#include <tuple>
 
 template <typename VType>
 using DataVec = std::vector<VType>;
@@ -168,6 +171,8 @@ private:
   * @return the huffman code
   */
  [[nodiscard]] static std::vector<HuffmanCode> create_canonial_huffman_code(const std::vector<uint16_t>& code_len_table) ;
+
+ static uint32_t reverse_bits(uint32_t val, int len);
 };
 
 #endif //HUFFMANCODE_H

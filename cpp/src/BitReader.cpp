@@ -31,3 +31,9 @@ void BitReader::set_safe_end(size_t num_future_byts)
     safe_end = buffer + num_future_byts;
 }
 
+void BitReader::alighn_reader_to_byte()
+{
+    if(offset_ > 0) buffer_iter +=1 ;
+    offset_ = 0;
+}
+

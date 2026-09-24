@@ -8,7 +8,8 @@
 #include<fstream>
 #include <memory>
 
-# define BUFFER_SIZE 1<<22 // 4MB
+# define BUFFER_SIZE (1<<22) // 4MB
+
 
 namespace binary_io
 {
@@ -75,7 +76,6 @@ namespace binary_io
 
         /**
          *  This method writes 'num_bytes_to_flush' bytes from 'buffer' into the file.
-         * @param buffer the buffer to write from into the file
          * @param num_bytes_to_flush the number of bytes to read from the file
          */
         void flush_buffer_to_file(uint64_t num_bytes_to_flush);

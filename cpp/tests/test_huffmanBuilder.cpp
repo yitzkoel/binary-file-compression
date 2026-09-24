@@ -19,8 +19,10 @@ void printLowBits(uint32_t num, int k)
     if (k <= 0) return;
     if (k > 32) k = 32;
 
-    // Simple loop from the (k-1)-th bit down to bit 0
-    for (int i = k - 1; i >= 0; --i)
+    // Since codes are now LSB-first, the first bit in the stream is at bit 0.
+    // Printing from bit 0 up to k-1 shows the chronological bit sequence
+    // exactly as it will be written to the file.
+    for (int i = 0; i < k; ++i)
     {
         std::cout << ((num >> i) & 1);
     }
@@ -126,14 +128,18 @@ void verify_huffman_properties(const std::vector<HuffmanCode>& codes, int max_le
         kraft_sum += (1 << (max_len - codes[i].len_code));
 
         // 3. Prefix collision check (ensure no short code is a prefix of a longer code)
+        // Since the codes are generated LSB-first, a prefix collision means the LOWER bits
+        // of the longer code perfectly match the shorter code.
         for (int j = 0; j < codes.size(); j++) {
             if (i == j || codes[j].len_code == 0) continue;
 
             // If code 'i' is shorter or equal to code 'j', ensure 'i' is not a prefix of 'j'
             if (codes[i].len_code <= codes[j].len_code) {
-                // Shift code 'j' right to compare only the top bits
-                uint32_t shifted = codes[j].huffman_code >> (codes[j].len_code - codes[i].len_code);
-                EXPECT_NE(codes[i].huffman_code, shifted)
+                // Mask out the upper bits of 'j' to only compare the relevant bottom bits
+                uint32_t mask = (1U << codes[i].len_code) - 1;
+                uint32_t lower_bits = codes[j].huffman_code & mask;
+
+                EXPECT_NE(codes[i].huffman_code, lower_bits)
                     << "Prefix collision! Symbol " << i << " is a prefix of Symbol " << j;
             }
         }
@@ -144,7 +150,7 @@ void verify_huffman_properties(const std::vector<HuffmanCode>& codes, int max_le
 
 
 // ---------------------------------------------------------
-// HARDCODED EDGE-CASE TESTS
+//  TESTS
 // ---------------------------------------------------------
 
 TEST_F(TestHuffmanBuilder, Test_get_canonial_huffman_code_Basic_Test)
@@ -236,6 +242,30 @@ TEST_F(TestHuffmanBuilder, Test_get_canonial_huffman_code_Advance_Test3)
 }
 
 TEST_F(TestHuffmanBuilder, Test_get_canonial_huffman_code_Advance_Test4)
+{
+    std::cout << "[INFO] Zero symbols edge case - Test_get_canonial_huffman_code_Advance_Test4\n";
+
+    // Test the extreme edge case where only a single valid symbol exists in the data.
+    // Expectation: The algorithm must inject a dummy node to form a valid binary tree.
+    // The active symbol and the dummy should both receive a length of 1, while unused symbols get 0.
+    std::vector<uint32_t> code_vec = {};
+
+    std::vector<HuffmanCode> code = HuffmanBuilder::get_canonial_huffman_code(code_vec, mapper, 8, 15);
+    std::vector<uint32_t> expected_code_len = {0, 0, 0, 0, 0, 0, 0, 0};
+
+    for (int i = 0; i < code.size(); i++)
+    {
+        EXPECT_EQ(code[i].len_code, expected_code_len[i]);
+        if (code[i].len_code > 0)
+        {
+            std::cout << "the code of symbol " << i << " is:";
+            printLowBits(code[i].huffman_code, code[i].len_code);
+            std::cout << std::endl;
+        }
+    }
+}
+
+TEST_F(TestHuffmanBuilder, Test_get_canonial_huffman_code_Advance_Test5)
 {
     std::cout << "[INFO] Perfectly balanced tree - Test_get_canonial_huffman_code_Advance_Test4\n";
 

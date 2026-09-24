@@ -4,8 +4,7 @@
 
 #include "HuffmanBuilder.h"
 
-#include <queue>
-#include <tuple>
+
 
 
 std::vector<HuffmanCode> HuffmanBuilder::get_canonial_huffman_code(const std::vector<uint16_t>& code_len_table, int max_code_len)
@@ -91,6 +90,9 @@ std::vector<uint16_t> HuffmanBuilder::get_code_len_table(HuffmanTree& tree, uint
     // create len_table with all the symbols with len 0.
     std::vector<uint16_t> len_table(table_size, 0);
 
+    // deal with edge case that the tree is empty
+    if(tree.empty()) return len_table;
+
     //********* Use BFS to travers the tree to get all the code lengths *********
 
     // FIFO data structure that hold the node and its depth in the tree
@@ -130,10 +132,12 @@ std::vector<uint16_t> HuffmanBuilder::get_code_len_table(HuffmanTree& tree, uint
     return len_table;
 }
 
+
 void HuffmanBuilder::deflate_code_length(std::vector<uint16_t>& code_length_table, int max_code_len)
 {
     std::vector<uint32_t> code_len_to_num_apearances(max_code_len, 0);
     int num_overflow = 0;
+    int active_symbols = 0;
 
     // count how many symbols are there for each code len
     for (unsigned short len : code_length_table)
@@ -141,11 +145,13 @@ void HuffmanBuilder::deflate_code_length(std::vector<uint16_t>& code_length_tabl
         if (len <= max_code_len && len > 0)
         {
             code_len_to_num_apearances[len - 1] += 1;
+            active_symbols++;
         }
-        if (len > max_code_len)
+        else if (len > max_code_len)
         {
             code_len_to_num_apearances[max_code_len - 1] += 1;
             num_overflow++;
+            active_symbols++;
         }
     }
 
@@ -153,6 +159,12 @@ void HuffmanBuilder::deflate_code_length(std::vector<uint16_t>& code_length_tabl
     int k = max_code_len - 1;
     while (num_overflow > 0)
     {
+        // SAFEGUARD: If we exhausted all levels and reached 0, the tree is too skewed to balance normally.
+        if (k <= 0)
+        {
+            break;
+        }
+
         if (code_len_to_num_apearances[k - 1] == 0)
         {
             k--;
@@ -164,6 +176,24 @@ void HuffmanBuilder::deflate_code_length(std::vector<uint16_t>& code_length_tabl
         code_len_to_num_apearances[k] += 2;
         if (k < max_code_len - 1) k++;
         num_overflow--;
+    }
+
+    // EDGE CASE RESOLUTION:
+    // If the standard deflation failed to balance the tree (num_overflow > 0),
+    // we must flatten the tree to guarantee Kraft's inequality and prevent decoder crashes.
+    // We calculate a uniform flat length that can accommodate all active symbols.
+    if (num_overflow > 0)
+    {
+        int target_len;
+        target_len = std::bit_width((uint32_t)active_symbols);
+        // Ensure the uniform length doesn't exceed the limit
+        if (target_len > max_code_len) target_len = max_code_len;
+
+        for (auto& len : code_length_table)
+        {
+            if (len > 0) len = target_len;
+        }
+        return; // Flattening done, we can exit safely.
     }
 
     // defining a symbol and code len pair
@@ -255,10 +285,24 @@ std::vector<HuffmanCode> HuffmanBuilder::create_canonial_huffman_code(const std:
             }
 
             canonial_code[symbol_to_len_pair.symbol].len_code = symbol_to_len_pair.len;
-            canonial_code[symbol_to_len_pair.symbol].huffman_code = huffman_code;
+            // we reverse the bit order since the prefix free property that we get when we build the canonial code
+            // if from the MSB for example we can get 0 for symbol A and 110 for symbol B, but if we read it from
+            // LSB (from the right) we dont get a prefix free code so we must reverse it.
+            canonial_code[symbol_to_len_pair.symbol].huffman_code = reverse_bits(huffman_code, symbol_to_len_pair.len);
             huffman_code++;
         }
 
         return canonial_code;
+}
+
+uint32_t HuffmanBuilder::reverse_bits(uint32_t val, int len)
+{
+    uint32_t reversed = 0;
+    for (int i = 0; i < len; i++)
+    {
+        reversed = (reversed << 1) | (val & 1);
+        val >>= 1;
+    }
+    return reversed;
 }
 

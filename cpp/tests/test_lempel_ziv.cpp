@@ -8,14 +8,15 @@
 #include <utility>
 #include <filesystem>
 
-
 class LempelZivTest : public ::testing::Test
 {
 protected:
     Lempel_ziv_algo compressor;
+    uint32_t WINDOW_OFFSET;
+    inline static const uint16_t EOF_SYMBOL = 256;
 
     LempelZivTest():
-        compressor()
+        compressor(), WINDOW_OFFSET(Lempel_ziv_algo::WINDOW_OFFSET)
     {
     }
 
@@ -50,11 +51,13 @@ protected:
         file.close();
     }
 
-    void set_buffer(std::vector<uint8_t>& data)
+    void set_buffer(std::vector<uint8_t>& data, uint8_t* buffer)
     {
+        compressor.buffer = buffer;
         for (int i = 0; i < data.size(); i++)
         {
             compressor.buffer[i] = data[i];
+
         }
 
         compressor.num_bytes_read = data.size();
@@ -136,9 +139,10 @@ TEST_F(LempelZivTest, AddingToCodedVec)
 
 TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
 {
+    std::unique_ptr<std::array<uint8_t,BUFFER_SIZE>> buff_ptr = std::make_unique<std::array<uint8_t,BUFFER_SIZE>>();
     // basic tests
     std::vector<uint8_t> buffer_data = {1, 0, 0, 0, 1, 0, 0, 0};
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
 
     set_index_in_buffer(4);
 
@@ -159,7 +163,7 @@ TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
         }
     }
 
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
     set_index_in_buffer(32);
     EXPECT_EQ(get_max_window_from_given_index(0,32), 32);
 
@@ -173,13 +177,13 @@ TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
             buffer_data.push_back(i);
         }
     }
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
     set_index_in_buffer(33);
     EXPECT_EQ(get_max_window_from_given_index(0,33), 33);
 
     // test searching for past window more that overflows into the future
     buffer_data = {1, 0, 1, 0, 1, 0};
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
     set_index_in_buffer(2);
     EXPECT_EQ(get_max_window_from_given_index(0,4), 4);
 
@@ -189,7 +193,7 @@ TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
         buffer_data.push_back(0);
     }
     set_index_in_buffer(10);
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
     EXPECT_EQ(get_max_window_from_given_index(9,40), 40);
 
 
@@ -205,13 +209,13 @@ TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
         }
         k++;
     }
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
     set_index_in_buffer(50);
     EXPECT_EQ(get_max_window_from_given_index(0,50), 15);
 
     // test max window of size 0
     buffer_data = {1, 0, 1, 0, 1, 0};
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
     set_index_in_buffer(2);
     EXPECT_EQ(get_max_window_from_given_index(0,0), 0);
 }
@@ -220,13 +224,15 @@ TEST_F(LempelZivTest, TestFindMaxWindowFromGivenIndex)
 
 TEST_F(LempelZivTest, TestFindWindowBasicFlow)
 {
+    std::unique_ptr<std::array<uint8_t,BUFFER_SIZE>> buff_ptr = std::make_unique<std::array<uint8_t,BUFFER_SIZE>>();
+
     std::vector<uint8_t> buffer_data =
         {'a', 'a', 'b', 'c', 'a', 'a', 'b', 'c', 'd', 'a', 'a', 'b', 'c', 'a', 'e'};
 
     uint32_t next_four_bytes = 0;
 
 
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
 
 
     // first cycle no match
@@ -300,13 +306,15 @@ TEST_F(LempelZivTest, TestFindWindowBasicFlow)
 
 TEST_F(LempelZivTest, TestFindWindow_OverlapFuture)
 {
+    std::unique_ptr<std::array<uint8_t,BUFFER_SIZE>> buff_ptr = std::make_unique<std::array<uint8_t,BUFFER_SIZE>>();
+
     std::vector<uint8_t> buffer_data =
         {'a', 'b', 'a', 'b', 'a', 'b', 'a', 'b', 'a', 'b', 'a', 'b', 'a', 'b'};
 
     uint32_t next_four_bytes = 0;
 
 
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
 
 
     // first cycle no match
@@ -338,6 +346,8 @@ TEST_F(LempelZivTest, TestFindWindow_OverlapFuture)
 
 TEST_F(LempelZivTest, TestCyclic_Array_Overflow)
 {
+    std::unique_ptr<std::array<uint8_t,BUFFER_SIZE>> buff_ptr = std::make_unique<std::array<uint8_t,BUFFER_SIZE>>();
+
     std::vector<uint8_t> buffer_data;
     for (int i = 0; i < 33; i++)
     {
@@ -347,7 +357,7 @@ TEST_F(LempelZivTest, TestCyclic_Array_Overflow)
         }
         buffer_data.push_back(i + 1);
     }
-    set_buffer(buffer_data);
+    set_buffer(buffer_data, buff_ptr->data());
 
     for (int i = 0; i < 69; i++)
     {
@@ -376,20 +386,20 @@ TEST_F(LempelZivTest, TestCyclic_Array_Overflow)
 
 TEST_F(LempelZivTest, TestBasicCompression)
 {
-    std::vector<uint32_t> buffer_data =
+    std::vector<uint8_t> buffer_data =
     {
         'a', 'a', 'b', 'a', 'a', 'b', 'a', 'a', 'c', 'd', 'c', 'd', 'c', 'd', 'd',
         'a', 'b', 'c', 'e', 'a', 'b', 'c', 'e', 'd', 'a', 'a', 'b', 'a', 'a', 'c', 'f', 'g'
     };
 
-    std::vector<uint64_t> expected_coded_vec = {
-        'a', 'a', 'b',  261,3, 'c', 'd',  260,2, 'd', 'a', 'b', 'c', 'e',
-         260,4, 'd',  262,21, 'f', 'g'
+    std::vector<uint32_t> expected_coded_vec = {
+        'a', 'a', 'b',  5 + WINDOW_OFFSET,3, 'c', 'd',  4 + WINDOW_OFFSET,2, 'd', 'a', 'b', 'c', 'e',
+         4 + WINDOW_OFFSET,4, 'd', 6 + WINDOW_OFFSET,21, 'f', 'g', EOF_SYMBOL
     };
 
-    std::string file_path = "basicCompressionTest.bin";
+    std::string file_path = "basicLZSSCompressionTest.bin";
 
-    std::ofstream file(file_path);
+    std::ofstream file(file_path, std::ios::binary);
 
     ASSERT_TRUE(file.is_open()) << "Failed to create test file: " << file_path;
 
@@ -409,9 +419,9 @@ TEST_F(LempelZivTest, TestBasicCompression)
 
 TEST_F(LempelZivTest, TestBasicDecompression)
 {
-    std::vector<uint32_t> coded_vec = {
-        'a', 'a', 'b',  261,3, 'c', 'd',  260,2, 'd', 'a', 'b', 'c', 'e',
-         260,4, 'd',  262,21, 'f', 'g'
+    std::vector<uint32_t> coded_vec =  {
+        'a', 'a', 'b',  5 + WINDOW_OFFSET,3, 'c', 'd',  4 + WINDOW_OFFSET,2, 'd', 'a', 'b', 'c', 'e',
+         4 + WINDOW_OFFSET,4, 'd', 6 + WINDOW_OFFSET,21, 'f', 'g', EOF_SYMBOL
     };
 
     std::vector<uint8_t> expected_data =

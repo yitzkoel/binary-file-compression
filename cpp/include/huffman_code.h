@@ -33,7 +33,7 @@ struct DistanceEncodeInfo
 
 struct Decode
 {
-    Decode(uint8_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
+    Decode(uint32_t symbol, uint8_t num_bits): symbol(symbol), num_bits(num_bits)
     {
     }
 
@@ -46,7 +46,7 @@ struct Decode
         return num_bits < other.num_bits;
     }
 
-    uint8_t symbol;
+    uint32_t symbol;
     uint8_t num_bits;
 };
 
@@ -132,7 +132,7 @@ public:
     /**
      * Constructor, it initalizes all the used data structures needed throughout its life.
      */
-    explicit Huffman_code();
+    Huffman_code() = default;
 
     /**
      *
@@ -143,9 +143,9 @@ public:
      * @param coded_vecs the vector that hold the lempel ziv compression (each vector corespondes to a block of at most 4MB of the file)
      * @param original_file_size the number of bytes of the whole file
      */
-    static void compress(const std::string& file_path,
-                  std::vector<CodedVec>& coded_vecs,
-                  std::uint64_t original_file_size);
+    void compress(const std::string& file_path,
+                  const std::vector<CodedVec>& coded_vecs,
+                  uint64_t original_file_size);
 
     /**
      * This function decompresses 'file_path' file, into lempel ziv code.
@@ -154,7 +154,7 @@ public:
      * @param file_path the file that the compressed file is at
      * @return a vector of coded vecs each coded vec is a block of compressed data.
      */
-    static std::vector<CodedVec> decompress(const std::string& file_path);
+    std::vector<CodedVec> decompress(const std::string& file_path);
 
     /**
      * Rests the data structures that this object holds for a new compression.
@@ -174,23 +174,22 @@ private:
      *
      * @return the number of bytes needed to compress this vec
      */
-    static void code_vec(const ::CodedVec& coded_vec,
-                         std::vector<HuffmanCode>& literalLen_code,
-                         std::vector<HuffmanCode>& distance_code,
-                         BitWriter& bit_writer);
+    void code_vec(const ::CodedVec& coded_vec,
+                  std::vector<HuffmanCode>& literalLen_code,
+                  std::vector<HuffmanCode>& distance_code,
+                  BitWriter& bit_writer);
 
 
     //-----------------------------------------------------------------
     // HUFFMAN BINARY CODE HELPER FUNCTIONS
     //-----------------------------------------------------------------
-    static::CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
-
+    CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
     /**
      * this function codes into binary the the coded vec into a block and writes it into the file.
      * @param coded_vec the coded vec of this block
      */
-    static void compress_block(CodedVec& coded_vec, BitWriter& bit_writer);
+    void compress_block(const CodedVec& coded_vec, BitWriter& bit_writer);
 
     static uint32_t literal_and_window_mapper(uint32_t val);
 
@@ -214,7 +213,7 @@ private:
 
     /**
      * This function extracts the length table from the block's code.
-     * 
+     *
      * @param num_symbols the number of symbols to extract their length
      * @return a vector that maps each symbol(the index) to its prefix free code length
      */
@@ -223,11 +222,11 @@ private:
     /**
      *  This function gets the current symbol read that encodes a window length, and reads from the buffer the
      *  the rest of the data to decode the actual coded window length and writes it into the vector
-     *  
+     *
      * @param block_code the data structure that holds the decoded vector
      * @param symbol the symbol of the window length we want to decode
      */
-    static void decode_window_length(::CodedVec& block_code, uint8_t symbol, BitReader& bit_reader);
+    static void decode_window_length(::CodedVec& block_code, uint32_t symbol, BitReader& bit_reader);
 
     /**
      * This function gets the current symbol read that encodes a distance and reads from the buffer  the
@@ -235,7 +234,7 @@ private:
      * @param block_code the data structure that holds the decoded vector
      * @param symbol the symbol of the distance we want to decode
      */
-    static void decode_distance(::CodedVec& block_code, uint8_t symbol, BitReader& bit_reader);
+    static void decode_distance(::CodedVec& block_code, uint32_t symbol, BitReader& bit_reader);
 
     /**
      * this function reads new data into the buffer from the file, making sure that the data that was not read yeat is
@@ -244,7 +243,7 @@ private:
      * @param file_reader the file to read the new data from
      * @param bit_reader the handle to read single bits out of the file
      */
-    static void read_new_data_into_buffer(binary_io::FileReader& file_reader, BitReader& bit_reader);
+    void read_new_data_into_buffer(binary_io::FileReader& file_reader, BitReader& bit_reader);
 
     /**
      * This function fills in the field 'windowLengthToCode' which is a table that lets us access in O(1) all the
@@ -254,31 +253,137 @@ private:
      * inpracticle.
      * @param canonial_code the prefix free code for each symbol
      */
-    static void create_windowLenToCode_table(const std::vector<HuffmanCode>& canonial_code);
+    void create_windowLenToCode_table(const std::vector<HuffmanCode>& canonial_code);
 
     static void split_vec(CodedVec& literal_and_len_vec, CodedVec& distance_vec, const CodedVec& coded_vec);
+
+    static constexpr auto generate_symbolToLen_tables();
+    static constexpr auto generate_symbolToDistance_tables();
+    static constexpr bool init_all_tables();
 
 
     //-----------------------------------------------------------------
     // FIELDS
     //-----------------------------------------------------------------
 
-    static const int MAX_CODE_LEN = 15;
-    static const uint8_t EOF_SYMBOL = 256;
-    static const uint16_t WINDOW_SYMBOL_OFFSET_IN_TABLE = 257;
+    inline static const int MAX_CODE_LEN = 15;
+    inline static const uint16_t EOF_SYMBOL = 256;
+    inline static const uint16_t WINDOW_SYMBOL_OFFSET_IN_TABLE = 257;
 
     // number of symbols in each huffman tree
-    static const int LITERAL_AND_LEN_NUM_SYMBOLS = 286;
-    static const int DISTANCE_NUM_SYMBOLS = 56;
+    inline static const int LITERAL_AND_LEN_NUM_SYMBOLS = 286;
+    inline static const int DISTANCE_NUM_SYMBOLS = 56;
 
     // maps from symbol of the huffman code to the range of number it represents
-    static std::array<uint32_t, LITERAL_AND_LEN_NUM_SYMBOLS> symbolToLenRange_table;
-    static std::array<uint32_t, DISTANCE_NUM_SYMBOLS> symbolToDistanceRange_table;
- 
-    static const int  MAX_WINDOW_SIZE = (1<<11) + 22;
-    static std::array<WindowLengthToCode, MAX_WINDOW_SIZE + 4 > windowLenToCode;
+    inline static std::array<uint32_t, LITERAL_AND_LEN_NUM_SYMBOLS> symbolToLenRange_table;
+    inline static std::array<uint32_t, DISTANCE_NUM_SYMBOLS> symbolToDistanceRange_table;
 
-    static std::array<uint8_t, LITERAL_AND_LEN_NUM_SYMBOLS - 256> symbol_to_len_num_extra_bits;
-    static std::array<uint8_t, DISTANCE_NUM_SYMBOLS> symbol_to_dist_num_extra_bits;
+    //maps each symbol to the number of extra bits we need to describe it (after coding the range)
+    inline static std::array<uint8_t, LITERAL_AND_LEN_NUM_SYMBOLS> symbolToLen_num_extra_bits;
+    inline static std::array<uint8_t, DISTANCE_NUM_SYMBOLS> symbolToDist_num_extra_bits;
+
+    // dumy var to init all the static data structures
+    inline static const bool initialized = init_all_tables();
+
+    inline static const int MAX_SUPPORTED_MATCH_LEN = 2068;
+    std::array<WindowLengthToCode, MAX_SUPPORTED_MATCH_LEN + 1> windowLenToCode;
+
+    bool finished_file;
+
+
+    friend class TestHuffmanCoder;
 };
+
+constexpr auto Huffman_code::generate_symbolToLen_tables()
+{
+    // setup symbolToLenRange_table
+    // setup symbolToLen_num_extra_bits table
+    uint32_t jump = 1;
+    uint8_t extra_bit_len = 0;
+    for (int i = 0; i < LITERAL_AND_LEN_NUM_SYMBOLS; i++)
+    {
+        // if we are at the literal and EOF symbols add the same value to the table
+        if (i <= 256)
+        {
+            symbolToLenRange_table[i] = i;
+            symbolToLen_num_extra_bits[i] = extra_bit_len;
+            continue;
+        }
+
+        // if we are at the symbols that represend window lengths in the table then we are from index
+        // 257 - 285 in the table and then:
+
+        int window_len_symbol = i - 257; //normalize the symbols to be from 0 to 27 (28 symbols).
+
+        // if we are the first 18 window len symbols then we just keep the length of that symbol from 4 to 22
+        if (window_len_symbol <= 18)
+        {
+            symbolToLenRange_table[i] = 4 + window_len_symbol;
+            symbolToLen_num_extra_bits[i] = extra_bit_len;
+        }
+
+        // else we are at the ranges: 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024-2068 (plus the base 22)
+        else
+        {
+            symbolToLenRange_table[i] = symbolToLenRange_table[i - 1] + jump;
+            jump = jump << 1; // mult by 2
+
+            // each jump increases the range by 1 bit since we have multiple of 2 each time
+            symbolToLen_num_extra_bits[i] = ++extra_bit_len;
+        }
+    }
+}
+
+constexpr auto Huffman_code::generate_symbolToDistance_tables()
+{
+    // setup symbolToDistanceRange_table
+    // setup symbolToDist_num_extra_bits table
+
+    // In the LZ-Huffman implementation used by this engine, the first 16 symbols (0-15)
+    // are mapped directly to exact distances (1 to 16) and require no extra bits.
+    // Larger distances are coded into ranges rather than exact values. Since we support a 4MB
+    // sliding window, building a Huffman tree with 4 million distinct symbols is impractical
+    // (both due to tree encoding overhead and compression speed).
+    // Therefore, the ranges are scaled with exponential growth, under the assumption that as
+    // the distance grows, the probability of finding a match decreases. This is based on
+    // empirical evidence found in modern compressors and the specific matching logic of
+    // the LZ stage I wrote.
+    uint32_t jump = 1;
+    uint8_t extra_bit_len = 0;
+    for (int i = 0; i < DISTANCE_NUM_SYMBOLS; i++)
+    {
+        // first 16 distances are without range and we just add the actual value to the tables
+        if (i < 16)
+        {
+            symbolToDistanceRange_table[i] = i + 1;
+            symbolToDist_num_extra_bits[i] = extra_bit_len;
+        }
+
+
+        else
+        {
+            // For symbols 16 and above, distances are grouped into ranges.
+            // The base distance for the current symbol is the previous base plus the current range size ('jump')
+            symbolToDistanceRange_table[i] = symbolToDistanceRange_table[i - 1] + jump;
+
+            // To keep the Huffman tree balanced, the range size grows exponentially.
+            // Every pair of symbols shares the same number of extra bits.
+            // After evaluating an even-indexed symbol, we double the range size (jump)
+            // and add 1 more extra bit for the next pair of symbols..
+            if (i % 2 == 0)
+            {
+                jump = jump << 1;
+                extra_bit_len++;
+            }
+            symbolToDist_num_extra_bits[i] = extra_bit_len;
+        }
+    }
+}
+
+constexpr bool Huffman_code::init_all_tables()
+{
+    generate_symbolToDistance_tables();
+    generate_symbolToLen_tables();
+    return true;
+}
 #endif //HUFFMAN_CODE_H

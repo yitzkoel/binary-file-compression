@@ -42,25 +42,31 @@ CodedVec Lempel_ziv_algo::compress(const std::string& file_path)
             }
         }
     }
+    code_vec.push_back(EOF_SYMBOL);
    return code_vec;
 }
 
-void Lempel_ziv_algo::decompress(const std::string& file_path, CodedVec code_vec)
+void Lempel_ziv_algo::decompress(const std::string& file_path, CodedVec& code_vec)
 {
     binary_io::FileWriter output_file(file_path);
 
     index_in_buffer = 0;
     uint64_t index_in_coded_vec = 0;
+    buffer = output_file.get_buffer();
+
 
     // read the coded vec
-    while (index_in_coded_vec < code_vec.size())
+    while (true)
     {
         uint32_t val = code_vec[index_in_coded_vec];
         index_in_coded_vec++;
 
         // case 1: the current bit is 1:  the cuurent value in the coded vector is a literal
-        if (val <= 255)
+        if (val <= 256)
         {
+            // we reached the end of the vector
+            if(val == EOF_SYMBOL) break;
+
             // write into the buffer the current literal in coded vec
             buffer[index_in_buffer] = val;
 

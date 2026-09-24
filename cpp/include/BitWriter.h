@@ -31,9 +31,8 @@ public:
         // check that the var num_bits is legal
         assert(num_bits <= 32 && "The bit writer supports writing at most 32 bits at a time");
 
-        uint64_t window = 0;
-
         // copy a window of 64 bit
+        uint64_t window = 0;
         memcpy(&window, iter, 8);
 
         // zero out the window execpt to the offset that was already writtin (we dont want to ovewrite)
@@ -74,12 +73,13 @@ public:
     }
 
     /**
-     * returns the number of bytes writen to the buffer so far.
+     * returns the number of bytes writen to the buffer so far including the byte that we are in the middle of (the
+     * offset is not 0).
      * @return the number of bytes writen to the buffer so far.
      */
     size_t num_bytes_writen_to_buffer()
     {
-        return iter - buffer;
+        return iter - buffer + (offset > 0 ? 1 : 0);
     }
 
     /**
