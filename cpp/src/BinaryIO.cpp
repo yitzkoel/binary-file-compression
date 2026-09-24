@@ -2,10 +2,10 @@
 // Created by yitzk on 8/3/2026.
 //
 
-#include "../include/binary_io.h"
+#include "../include/BinaryIO.h"
 
 
-namespace binary_io
+namespace BinaryIO
 {
     FileReader::FileReader(const std::string& file_name)
     {

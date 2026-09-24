@@ -11,7 +11,7 @@
 # define BUFFER_SIZE (1<<22) // 4MB
 
 
-namespace binary_io
+namespace BinaryIO
 {
     /*
      * This class provides an abstraction to reading from a binary file.
