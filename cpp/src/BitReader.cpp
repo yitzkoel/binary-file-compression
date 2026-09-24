@@ -5,8 +5,8 @@
 #include "BitReader.h"
 
 
-BitReader::BitReader(uint8_t* buffer):
-    buffer(buffer), buffer_iter(buffer), offset_(0), safe_end(nullptr)
+BitReader::BitReader(uint8_t* buffer, size_t buffer_size):
+    buffer(buffer), buffer_iter(buffer), offset_(0), safe_end(nullptr), buffer_size(buffer_size)
 {
 }
 
@@ -26,9 +26,9 @@ void BitReader::set_offset(uint8_t offset)
     offset_ = offset;
 }
 
-void BitReader::set_safe_end(size_t num_future_byts)
+void BitReader::set_safe_end(size_t num_bytes_from_buffer_end)
 {
-    safe_end = buffer + num_future_byts;
+    safe_end = buffer + buffer_size - num_bytes_from_buffer_end;
 }
 
 void BitReader::alighn_reader_to_byte()

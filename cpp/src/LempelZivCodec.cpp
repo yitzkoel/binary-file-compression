@@ -2,70 +2,65 @@
 // Created by yitzk on 8/7/2026.
 //
 
-#include "../include/lempel_ziv_algo.h"
+#include "../include/LempelZivCodec.h"
 
-CodedVec Lempel_ziv_algo::compress(const std::string& file_path)
+CodedVec LempelZivCodec::compress(uint8_t* buffer_ptr, size_t buffer_size)
 {
     CodedVec code_vec;
 
-    auto input_file = binary_io::FileReader(file_path);
-    buffer = input_file.get_buffer();
+    // reserve space in the vector to prevent allocation in the loop below
+    code_vec.reserve(buffer_size / 2);
 
-    while (input_file.slide_window())
+    buffer = buffer_ptr;
+    num_bytes_in_buffer = buffer_size;
+    hash_map.clear();
+    index_in_buffer = 0;
+
+    while (index_in_buffer < num_bytes_in_buffer)
     {
-        num_bytes_read = input_file.get_num_bytes_read();
-        index_in_buffer = 0;
-        hash_map.clear();
-
-        while (index_in_buffer < num_bytes_read)
+        if (find_window())
         {
-            if (find_window())
-            {
-                // add window and distance index
+            // add window and distance index
 
-                // the window length with the offset
-                code_vec.push_back(len_window + WINDOW_OFFSET);
-                // the distance to the window from the current index
-                code_vec.push_back(index_in_buffer - start_window_index);
+            // the window length with the offset
+            code_vec.push_back(len_window + WINDOW_OFFSET);
+            // the distance to the window from the current index
+            code_vec.push_back(index_in_buffer - start_window_index);
 
-                // update index in the buffer
-                index_in_buffer += len_window;
-            }
+            // update index in the buffer
+            index_in_buffer += len_window;
+        }
 
-            else
-            {
-                // addind literal
-                code_vec.push_back(literal);
+        else
+        {
+            // addind literal
+            code_vec.push_back(literal);
 
-                // update index in the buffer
-                index_in_buffer++;
-            }
+            // update index in the buffer
+            index_in_buffer++;
         }
     }
     code_vec.push_back(EOF_SYMBOL);
-   return code_vec;
+    return code_vec;
 }
 
-void Lempel_ziv_algo::decompress(const std::string& file_path, CodedVec& code_vec)
+uint64_t LempelZivCodec::decompress(uint8_t* buffer_ptr, size_t buffer_size, CodedVec& code_vec)
 {
-    binary_io::FileWriter output_file(file_path);
-
     index_in_buffer = 0;
-    uint64_t index_in_coded_vec = 0;
-    buffer = output_file.get_buffer();
+    buffer = buffer_ptr;
+    uint32_t val = 0;
 
-
-    // read the coded vec
-    while (true)
+    for (size_t index_in_coded_vec = 0; index_in_coded_vec < code_vec.size();)
     {
-        uint32_t val = code_vec[index_in_coded_vec];
+        // read the coded vec
+        val = code_vec[index_in_coded_vec];
         index_in_coded_vec++;
 
-        // case 1: the current bit is 1:  the cuurent value in the coded vector is a literal
+        // case 1:  the cuurent value in the coded vector is a literal
         if (val <= 256)
         {
             // we reached the end of the vector
-            if(val == EOF_SYMBOL) break;
+            if (val == EOF_SYMBOL) break;
 
             // write into the buffer the current literal in coded vec
             buffer[index_in_buffer] = val;
@@ -73,14 +68,29 @@ void Lempel_ziv_algo::decompress(const std::string& file_path, CodedVec& code_ve
             // update index
             index_in_buffer++;
         }
-        // case 2: the current bit is 0: the next two values in the coded vec code the the past index and length of window
+        // case 2: the next two values in the coded vec code the the past index and length of window
         else
         {
             // read the next two values in the coded vec that code the start index of the window and the window length
-            len_window =  val - WINDOW_OFFSET;
+            len_window = val - WINDOW_OFFSET;
             start_window_index = index_in_buffer - code_vec[index_in_coded_vec];
             index_in_coded_vec++;
-            // TODO safty check did we accedently passed the vec size or the bitmap and so on?
+
+            //--------------------
+            // SAFTY CHECKS
+            //--------------------
+
+            // check if the buffer will overflow
+            if (index_in_buffer + len_window > buffer_size) [[unlikely]] {
+                throw std::out_of_range("CRITICAL: Buffer overflow detected during match decoding.");
+            }
+
+            // check if the distance from the point where the window start is even possible
+            // (if it is true then "index_in_buffer - code_vec[index_in_coded_vec]  < 0" wich is impossible.
+            if (code_vec[index_in_coded_vec - 1] > index_in_buffer) [[unlikely]]{
+                throw std::runtime_error("CRITICAL: Corrupted LZSS vector -distance code matched a point before buffer start.");
+            }
+            
 
             // case 1: the window is all in the past safe to use memcpy and faster
             if (start_window_index + len_window <= index_in_buffer)
@@ -98,26 +108,23 @@ void Lempel_ziv_algo::decompress(const std::string& file_path, CodedVec& code_ve
 
             index_in_buffer += len_window;
         }
-
-        if (index_in_buffer == BUFFER_SIZE)
-        {
-            output_file.flush_buffer_to_file(BUFFER_SIZE);
-            index_in_buffer = 0;
-        }
     }
+    //the vector doesnt end with EOF SYMBOL as it should which mean it was corrupted
+    if (val != EOF_SYMBOL) [[unlikely]] throw std::runtime_error(
+        "CRITICAL: The vector didn't end with EOF symbol must have been corrupted.");
 
-    output_file.flush_buffer_to_file(index_in_buffer);
+    return index_in_buffer;
 }
 
-void Lempel_ziv_algo::clear()
+void LempelZivCodec::clear()
 {
-     buffer = nullptr;
+    buffer = nullptr;
 
     // the hash map
-     hash_map.clear();
+    hash_map.clear();
 
-    num_bytes_read = 0;
-    index_in_buffer = 0 ;
+    num_bytes_in_buffer = 0;
+    index_in_buffer = 0;
 
     start_window_index = 0;
     len_window = 0;
@@ -125,13 +132,13 @@ void Lempel_ziv_algo::clear()
 }
 
 
-bool Lempel_ziv_algo::find_window()
+bool LempelZivCodec::find_window()
 {
     // calculate max window size to look for
-    uint64_t max_window_size = std::min(num_bytes_read - index_in_buffer,MAX_WINDOW_SIZE);
+    uint64_t max_window_size = std::min(num_bytes_in_buffer - index_in_buffer, MAX_WINDOW_SIZE);
 
     // if the potential window size is at most 3 it is not worth the compression
-    if(max_window_size < 4)
+    if (max_window_size < 4)
     {
         literal = buffer[index_in_buffer];
         return false;
@@ -194,7 +201,7 @@ bool Lempel_ziv_algo::find_window()
     }
 }
 
-uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_start_searching, uint64_t max_window_size)
+uint64_t LempelZivCodec::find_max_window_from_given_index(uint32_t index_to_start_searching, uint64_t max_window_size)
 {
     //TODO can optemise the code after the 32 bit compare with XOR compare of 8 byte numbers to avoid branching commands
     //############# ASSERT DECLERTIONS ###############//
@@ -244,8 +251,8 @@ uint64_t Lempel_ziv_algo::find_max_window_from_given_index(uint32_t index_to_sta
 
         // else we can do the comparison
         if (memcmp(buffer + index_in_buffer + max_window_len,
-            buffer + index_to_start_searching + max_window_len,
-            len) == 0)
+                   buffer + index_to_start_searching + max_window_len,
+                   len) == 0)
         {
             max_window_len += len;
         }

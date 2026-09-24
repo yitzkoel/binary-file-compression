@@ -9,9 +9,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
 # The core compressing library
 add_library(compressor_lib
-        src/lempel_ziv_algo.cpp
-        src/binary_io.cpp
-        src/huffman_code.cpp
+        src/LempelZivCodec.cpp
+        src/BinaryIO.cpp
+        src/huffmanCodec.cpp
         src/hashTable.cpp
         src/HuffmanBuilder.cpp
         src/BitWriter.cpp

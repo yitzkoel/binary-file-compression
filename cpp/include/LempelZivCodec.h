@@ -10,16 +10,29 @@
 #include <cassert>
 
 #include "hashTable.h"
-#include "binary_io.h"
+#include "BinaryIO.h"
 
 using CodedVec = std::vector<uint32_t>;
 
 
-class Lempel_ziv_algo {
+class LempelZivCodec {
 public:
-    CodedVec compress(const std::string& file_path);
+    /**
+     * This function codes data from a buffer into a vector with the lempel ziv algorithm.
+     * @param buffer_ptr the pointer to the buffer with the data to compress
+     * @param buffer_size the amount of bytes in the buffer
+     * @return a vector with the lempel viz code
+     */
+    CodedVec compress(uint8_t* buffer_ptr, size_t buffer_size);
 
-    void decompress(const std::string& file_path, CodedVec& code_vec);
+    /**
+     * This function decompreses a coded vector into a buffer.
+     * @param buffer_ptr the buffer to write the decompressed data into
+     * @param buffer_size the size of the buffer in bytes
+     * @param code_vec a vector that was coded using the lempel ziv algo compression function.
+     * @return the number of bytes the coded vec decompressed into the buffer.
+     */
+    uint64_t decompress(uint8_t* buffer_ptr, size_t buffer_size, CodedVec& code_vec);
 
     void clear();
 
@@ -54,7 +67,7 @@ private:
     static const  int power_of_two_size_of_hash_table = 18;
 
 
-    uint64_t num_bytes_read = 0;
+    uint64_t num_bytes_in_buffer = 0;
     uint64_t index_in_buffer = 0 ;
 
     uint64_t start_window_index = 0;
@@ -65,7 +78,7 @@ private:
     inline static const uint16_t WINDOW_OFFSET = 257;
     inline static const uint16_t EOF_SYMBOL = 256;
 
-    friend class LempelZivTest;
+    friend class LempelZivCodecTest;
 };
 
 // ==========================================

@@ -5,8 +5,10 @@
 #include <../include/BitReader.h>
 #include <gtest/gtest.h>
 #include <cstring> // For std::memset and std::memcpy
+#include <array>
+#include <memory>
 
-#define BUFFER_SIZE 1<<22 // 4MB
+#define BUFFER_SIZE (1<<22) // 4MB
 
 class TestBitReader : public ::testing::Test
 {
@@ -18,13 +20,14 @@ protected:
 
     BitReader bit_reader;
 
-    TestBitReader(): bit_reader(buffer->data()), buffer_ptr(buffer->data())
+    // Updated Constructor: passing BUFFER_SIZE to the BitReader
+    TestBitReader(): bit_reader(buffer->data(), BUFFER_SIZE), buffer_ptr(buffer->data())
     {
     }
 
     [[nodiscard]] uint8_t get_offset() const
     {
-        return bit_reader.offset_;
+        return bit_reader.get_offset();
     }
 };
 
@@ -253,19 +256,25 @@ TEST_F(TestBitReader, TestCyclicBuffer_Test1)
     size_t buffer_size = 20;
     uint8_t buffer[buffer_size];
 
-    BitReader bit_reader_cyclic(buffer);
-    bit_reader_cyclic.set_safe_end(12);
+    // Initialize with the new API including buffer_size
+    BitReader bit_reader_cyclic(buffer, buffer_size);
+
+    // We want the safe end to be at index 12.
+    // Thus, it is 8 bytes from the buffer's end (20 - 8 = 12).
+    bit_reader_cyclic.set_safe_end(8);
 
     std::memset(buffer, 0xAA, 12);
     std::memset(buffer + 12, 0xFF, 8); // Data that triggers wrap-around
 
+    // Position iterator inside the "unsafe" wrap-around zone (index 13)
     bit_reader_cyclic.set_index(13);
     bit_reader_cyclic.set_offset(3);
 
-    // Perform the cycle logic
-    bit_reader_cyclic.cycle_buffer(8);
+    // Perform the cycle logic using internal size state
+    bit_reader_cyclic.cycle_buffer();
 
-    // Verify iterator wraps to the correct relative position
+    // Verify iterator wraps to the correct relative position.
+    // Old index 13 was 1 byte past safe_end (12). So new index should be 1.
     EXPECT_EQ(buffer + 1, bit_reader_cyclic.get_iter());
 
     // Verify reading continuous data post-wrap works flawlessly

@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include "binary_io.h"
+#include <BinaryIO.h>
+
+#include "BinaryIO.h"
 #include "HuffmanBuilder.h"
 #include "BitWriter.h"
 #include "BitReader.h"
@@ -51,7 +53,7 @@ struct Decode
 };
 
 /**
- * @class Huffman_code
+ * @class HuffmanCodec
  *
  * @brief This class holds all the logic to encode LZSS vector into a binary file using
  *        Canonical Huffman coding, and to decode the binary file back into LZSS vector.
@@ -126,35 +128,29 @@ struct Decode
  * - Raw Bits: Extra bits are written/read natively without Huffman encoding because the distribution
  *   within a specific range is uniform (pure entropy).
  */
-class Huffman_code
+class HuffmanCodec
 {
 public:
     /**
      * Constructor, it initalizes all the used data structures needed throughout its life.
      */
-    Huffman_code() = default;
+    HuffmanCodec() = default;
 
     /**
-     *
-     * This function gets all the data from a lempel zivSS compression, and uses huffman code to compress it into binary
-     * into a file named 'file_path'.
-     *
-     * @param file_path the file path to dump the compressed file into
-     * @param coded_vecs the vector that hold the lempel ziv compression (each vector corespondes to a block of at most 4MB of the file)
-     * @param original_file_size the number of bytes of the whole file
+     * this function codes a vector that was coded using lempel ziv into binary code using huffman code
+     * @param buffer_ptr the buffer to code the dvec into
+     * @param coded_vec the lempel viz vec to code into huffman code
      */
-    void compress(const std::string& file_path,
-                  const std::vector<CodedVec>& coded_vecs,
-                  uint64_t original_file_size);
+    size_t compress(uint8_t* buffer_ptr,CodedVec& coded_vec);
 
     /**
-     * This function decompresses 'file_path' file, into lempel ziv code.
-     * this method assumes that the format of the file is correct.
+     * This function decompresses a single vector from the compressed file.
      *
-     * @param file_path the file that the compressed file is at
-     * @return a vector of coded vecs each coded vec is a block of compressed data.
+     * @param file_reader the file that the compressed file is at
+     * @param bit_reader lets read bits from the file
+     * @return a vector of coded vec which is a block of compressed data.
      */
-    std::vector<CodedVec> decompress(const std::string& file_path);
+    CodedVec decompress(BinaryIO::FileReader& file_reader,BitReader& bit_reader);
 
     /**
      * Rests the data structures that this object holds for a new compression.
@@ -164,32 +160,24 @@ public:
 
 private:
     //-----------------------------------------------------------------
-    // FUNCTION TO WRITE INTO THE FILE
+    // FUNCTION TO WRITE INTO THE BUFFER
     //-----------------------------------------------------------------
     /**
      * this function codes a vector that was coded using lempel ziv into binary code using huffman code
      * @param coded_vec the coded vec to code into binary.
      * @param literalLen_code the huffman code to use to literals and window lengths
      * @param distance_code the huffman code to use for distances
-     *
-     * @return the number of bytes needed to compress this vec
      */
-    void code_vec(const ::CodedVec& coded_vec,
+    void compress_vec(const ::CodedVec& coded_vec,
                   std::vector<HuffmanCode>& literalLen_code,
                   std::vector<HuffmanCode>& distance_code,
-                  BitWriter& bit_writer);
+                  BitWriter& bit_writer
+                  );
 
 
     //-----------------------------------------------------------------
     // HUFFMAN BINARY CODE HELPER FUNCTIONS
     //-----------------------------------------------------------------
-    CodedVec decompress_block(binary_io::FileReader& file_reader, BitReader& bit_reader);
-
-    /**
-     * this function codes into binary the the coded vec into a block and writes it into the file.
-     * @param coded_vec the coded vec of this block
-     */
-    void compress_block(const CodedVec& coded_vec, BitWriter& bit_writer);
 
     static uint32_t literal_and_window_mapper(uint32_t val);
 
@@ -243,7 +231,7 @@ private:
      * @param file_reader the file to read the new data from
      * @param bit_reader the handle to read single bits out of the file
      */
-    void read_new_data_into_buffer(binary_io::FileReader& file_reader, BitReader& bit_reader);
+    void read_new_data_into_buffer(BinaryIO::FileReader& file_reader, BitReader& bit_reader);
 
     /**
      * This function fills in the field 'windowLengthToCode' which is a table that lets us access in O(1) all the
@@ -269,6 +257,7 @@ private:
     inline static const int MAX_CODE_LEN = 15;
     inline static const uint16_t EOF_SYMBOL = 256;
     inline static const uint16_t WINDOW_SYMBOL_OFFSET_IN_TABLE = 257;
+    inline static const int NUM_BITS_TO_READ = 15;
 
     // number of symbols in each huffman tree
     inline static const int LITERAL_AND_LEN_NUM_SYMBOLS = 286;
@@ -291,10 +280,11 @@ private:
     bool finished_file;
 
 
-    friend class TestHuffmanCoder;
+
+    friend class TestHuffmanCodec;
 };
 
-constexpr auto Huffman_code::generate_symbolToLen_tables()
+constexpr auto HuffmanCodec::generate_symbolToLen_tables()
 {
     // setup symbolToLenRange_table
     // setup symbolToLen_num_extra_bits table
@@ -334,7 +324,7 @@ constexpr auto Huffman_code::generate_symbolToLen_tables()
     }
 }
 
-constexpr auto Huffman_code::generate_symbolToDistance_tables()
+constexpr auto HuffmanCodec::generate_symbolToDistance_tables()
 {
     // setup symbolToDistanceRange_table
     // setup symbolToDist_num_extra_bits table
@@ -380,7 +370,7 @@ constexpr auto Huffman_code::generate_symbolToDistance_tables()
     }
 }
 
-constexpr bool Huffman_code::init_all_tables()
+constexpr bool HuffmanCodec::init_all_tables()
 {
     generate_symbolToDistance_tables();
     generate_symbolToLen_tables();

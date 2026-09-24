@@ -11,12 +11,12 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(run_unit_tests
-        test_lempel_ziv.cpp
-        test_hash_table.cpp
+        test_LempelZivCodec.cpp
+        test_HashTable.cpp
         test_huffmanBuilder.cpp
         test_BitWriter.cpp
         test_BitReader.cpp
-        Test_huffman_coder.cpp
+        test_HuffmanCodec.cpp
 )
 
 target_link_libraries(run_unit_tests

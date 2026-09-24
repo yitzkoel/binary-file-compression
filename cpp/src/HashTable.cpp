@@ -1,7 +1,7 @@
 //
 // Created by yitzk on 9/15/2026.
 //
-#include "hashTable.h"
+#include "HashTable.h"
 
 hashTable::hashTable(int power_of_two_size):
     hash_table(1 << power_of_two_size),

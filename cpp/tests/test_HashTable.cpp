@@ -3,7 +3,7 @@
 //
 #include <fstream>
 #include<gtest/gtest.h>
-#include<../include/hashTable.h>
+#include<../include/HashTable.h>
 
 class TestHashTable : public ::testing::Test
 {

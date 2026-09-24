@@ -5,7 +5,9 @@
 #include "BitWriter.h"
 
 
-BitWriter::BitWriter(uint8_t* buffer):buffer(buffer), iter(buffer), offset(0)
+BitWriter::BitWriter(uint8_t* buffer):
+    buffer(buffer),
+    iter(buffer),
+    offset(0)
 {
 }
-

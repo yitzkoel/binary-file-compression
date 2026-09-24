@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <stdexcept>
 
 /**
  * @brief A class that lets you read bits from a buffer.
@@ -20,7 +21,7 @@ public:
      * Constructor
      * @param buffer The buffer to write into.
      */
-    explicit BitReader(uint8_t* buffer);
+    explicit BitReader(uint8_t* buffer, size_t buffer_size);
 
     /**
      * this function lets you look at the next 'num bits' in the buffer.
@@ -65,15 +66,15 @@ public:
      */
     uint8_t* get_iter();
 
-  uint8_t get_offset() const
- {
-  return offset_;
- }
+    uint8_t get_offset() const
+    {
+        return offset_;
+    }
 
- uint8_t* get_buffer() const
-  {
-   return  buffer;
-  }
+    uint8_t* get_buffer() const
+    {
+        return buffer;
+    }
 
     /**
      * this function sets the index of the uint8_t buffer to 'index'.
@@ -92,23 +93,27 @@ public:
      * The safe end is a pointer to a index in the buffer that the user of this class deemed to be safe to read as long
      * as long as the iterator of the buffer didnt reach it.
      *
-     * @param num_future_byts the number of bytes from the begining of the buffer we want the safe end to start from.
+     * @param num_bytes_from_buffer_end the number of bytes from the begining of the buffer we want the safe end to start from.
      */
-    void set_safe_end(size_t num_future_byts);
+    void set_safe_end(size_t num_bytes_from_buffer_end);
 
     /**
      * this function copies a block of bytes that are after the safe_end, and makes sure that the iterator and offset are
      * situated where we last had them (the reason is to cycle the buffer such that we can read more data into it and the
      * user feels in the API as if he continues to read from the buffer as usaul).
-     * @param num_next_bytes_to_recycle the number of bytes after the safe end we want to copy to the begoning of the buffer
      */
-    void cycle_buffer(uint16_t num_next_bytes_to_recycle)
+    void cycle_buffer()
     {
         // copy the 'num_next_bytes_to_recycle' bytes after safe end to the front of the buffer
-        memcpy(buffer, safe_end, num_next_bytes_to_recycle);
+        memcpy(buffer, safe_end, num_bytes_after_safe_end());
 
         // have buffer iter point to the first byte in buffer with data that was not yet consumed
         buffer_iter = buffer + (buffer_iter - safe_end);
+    }
+
+    size_t num_bytes_after_safe_end()
+    {
+        return (buffer + buffer_size) - safe_end;
     }
 
     /**
@@ -142,6 +147,8 @@ private:
     // the ptr to the safe end
     // pointer to a index in the buffer that the user of this class deemed to be safe to read as long as the iterator of the buffer didnt reach it.
     const uint8_t* safe_end;
+
+    size_t buffer_size;
 
 
     // added for testing
