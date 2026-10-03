@@ -158,6 +158,14 @@ public:
      */
     void clear();
 
+    //----------------------------------------------------------------
+    // FIELDS
+    //----------------------------------------------------------------
+
+    // number of symbols in each huffman tree
+    static constexpr int LITERAL_AND_LEN_NUM_SYMBOLS = 286;
+    static constexpr int DISTANCE_NUM_SYMBOLS = 56;
+
 private:
     //-----------------------------------------------------------------
     // FUNCTION TO WRITE INTO THE BUFFER
@@ -254,14 +262,10 @@ private:
     // FIELDS
     //-----------------------------------------------------------------
 
-    inline static const int MAX_CODE_LEN = 15;
-    inline static const uint16_t EOF_SYMBOL = 256;
-    inline static const uint16_t WINDOW_SYMBOL_OFFSET_IN_TABLE = 257;
-    inline static const int NUM_BITS_TO_READ = 15;
-
-    // number of symbols in each huffman tree
-    inline static const int LITERAL_AND_LEN_NUM_SYMBOLS = 286;
-    inline static const int DISTANCE_NUM_SYMBOLS = 56;
+    static constexpr int MAX_CODE_LEN = 15;
+    static constexpr uint16_t EOF_SYMBOL = 256;
+    static constexpr uint16_t WINDOW_SYMBOL_OFFSET_IN_TABLE = 257;
+    static constexpr int NUM_BITS_TO_READ = 15;
 
     // maps from symbol of the huffman code to the range of number it represents
     inline static std::array<uint32_t, LITERAL_AND_LEN_NUM_SYMBOLS> symbolToLenRange_table;
@@ -274,7 +278,7 @@ private:
     // dumy var to init all the static data structures
     inline static const bool initialized = init_all_tables();
 
-    inline static const int MAX_SUPPORTED_MATCH_LEN = 2068;
+    static constexpr int MAX_SUPPORTED_MATCH_LEN = 2068;
     std::array<WindowLengthToCode, MAX_SUPPORTED_MATCH_LEN + 1> windowLenToCode;
 
     bool finished_file;

@@ -43,16 +43,6 @@ void HuffmanCodec::compress_vec(const CodedVec& coded_vec,
     // code the vector
     for (uint32_t i = 0; i < coded_vec.size(); i++)
     {
-
-        // throw an error if the number of bytes needed to code the vector may exceed the number of bytes in the buffer
-        // The desighn is that the user of the compressor will have a try cluase and wont code the vector into huffman
-        // code since it does not compress the original data (wich is always at most 4MB).
-        if (bit_writer.num_bytes_writen_to_buffer() >= BUFFER_SIZE - 12)
-            [[unlikely]] {
-            throw std::out_of_range("Huffman compressed block exceeded 4MB limit.");
-        }
-
-
         // the next value in the vector
         uint32_t val = coded_vec[i];
 

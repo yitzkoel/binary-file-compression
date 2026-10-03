@@ -80,6 +80,13 @@ namespace BinaryIO
          */
         void flush_buffer_to_file(uint64_t num_bytes_to_flush);
 
+        /**
+         * This method writes 'num_bytes_to_flush' bytes from the buffer into the file.
+         * @param buffer the buffer to write into the file
+         * @param num_bytes_to_flush the number of bytes to write
+         */
+        void flush_buffer_to_file(const uint8_t* buffer, uint64_t num_bytes_to_flush);
+
         uint8_t* get_buffer();
 
         /**

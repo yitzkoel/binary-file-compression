@@ -61,6 +61,11 @@ namespace BinaryIO
         file.write(reinterpret_cast<const char*>(buffer->data()), (long)num_bytes_to_flush);
     }
 
+    void FileWriter::flush_buffer_to_file(const uint8_t* buffer, uint64_t num_bytes_to_flush)
+    {
+        file.write(reinterpret_cast<const char*>(buffer), (long)num_bytes_to_flush);
+    }
+
     uint8_t* FileWriter::get_buffer()
     {
         return buffer->data();

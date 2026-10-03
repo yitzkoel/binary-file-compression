@@ -16,6 +16,7 @@ add_library(compressor_lib
         src/HuffmanBuilder.cpp
         src/BitWriter.cpp
         src/BitReader.cpp
+        src/Codec.cpp
 )
 
 # Linking compressor_lib to the include folder
