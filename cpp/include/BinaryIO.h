@@ -8,8 +8,6 @@
 #include<fstream>
 #include <memory>
 
-# define BUFFER_SIZE (1<<22) // 4MB
-
 
 namespace BinaryIO
 {
@@ -26,11 +24,6 @@ namespace BinaryIO
          */
         explicit FileReader(const std::string& file_name);
 
-        /**
-         * slides the window buffer 4MB forward..
-         * @return true if there is more to slide and false otherwise.
-         */
-        bool slide_window();
 
         /**
          * This function reads 'count' bytes into the address dest, from the file.
@@ -38,16 +31,9 @@ namespace BinaryIO
          *
          * @param dest the buffer to read into the data from the file
          * @param count the number of bytes to read from the file
-         * @return true if successful (we havent reached the eof), and false if failed
+         * @return true if successful (we havent reached the eof), and false if there is no bytes to read (eof).
          */
-        bool read_bytes(uint8_t *dest, size_t count);
-
-
-        /**
-         * getter of the past window.
-         * @return the array that holds the past window of the file
-         */
-        uint8_t* get_buffer();
+        bool read_bytes(uint8_t* dest, size_t count);
 
         /**
          * Gets the number of bytes that where writin into the buffer (from index 0 to the returned value).
@@ -55,11 +41,11 @@ namespace BinaryIO
          */
         uint64_t get_num_bytes_read() const;
 
+        uint64_t get_file_size();
+
         ~FileReader();
 
     private:
-        std::shared_ptr<std::array<uint8_t, BUFFER_SIZE>> buffer =
-         std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
         uint64_t num_bytes_read = 0;
         std::ifstream file;
     };
@@ -75,26 +61,18 @@ namespace BinaryIO
         explicit FileWriter(const std::string& file_path);
 
         /**
-         *  This method writes 'num_bytes_to_flush' bytes from 'buffer' into the file.
-         * @param num_bytes_to_flush the number of bytes to read from the file
-         */
-        void flush_buffer_to_file(uint64_t num_bytes_to_flush);
-
-        /**
          * This method writes 'num_bytes_to_flush' bytes from the buffer into the file.
          * @param buffer the buffer to write into the file
          * @param num_bytes_to_flush the number of bytes to write
          */
         void flush_buffer_to_file(const uint8_t* buffer, uint64_t num_bytes_to_flush);
 
-        uint8_t* get_buffer();
+        void write(const uint8_t* buffer, uint64_t num_bytes);
 
         /**
          * Closes the file.
          */
         ~FileWriter();
-     std::shared_ptr<std::array<uint8_t, BUFFER_SIZE>> buffer =
-         std::make_shared<std::array<uint8_t,BUFFER_SIZE>>();
 
     private:
         std::ofstream file;

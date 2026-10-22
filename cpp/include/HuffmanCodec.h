@@ -55,7 +55,7 @@ struct Decode
 /**
  * @class HuffmanCodec
  *
- * @brief This class holds all the logic to encode LZSS vector into a binary file using
+ * @brief This class holds all the logic to encode LZSS vector into a binary using
  *        Canonical Huffman coding, and to decode the binary file back into LZSS vector.
  *
  * The class implements a Deflate-like compression architecture using data blocks,
@@ -65,16 +65,6 @@ struct Decode
  * The windows lenghts and distances are coded with ranges and not exact numbers
  * via Base + Extra Bits encoding (look bellow at Decoding stage to understand).
  *
- * =========================================================================================
- * 1. THE CODING FORMAT
- * =========================================================================================
- * The file is structured as a Global Header followed by one or more Compressed Blocks.
- *
- * [Global Header]
- * <original_file_size>  -> 8 bytes (uint64_t). The total uncompressed size of the original file.
- * <num_blocks_coded>  -> 8 bytes (uint64_t).
- *
- * [Block i] (Repeats until End Of File)
  * <Tree 1 Definition (Literals & Lengths)>
  *      <bit_lengths_1>  -> Array of 1 byte lengths used to reconstruct the Canonical Huffman tree.
  *                          (Symbol values:
@@ -126,7 +116,7 @@ struct Decode
  *   or tree structure. They only contain the bit-length of each symbol. The exact codes are
  *   reconstructed deterministically on the decoding side.
  * - Raw Bits: Extra bits are written/read natively without Huffman encoding because the distribution
- *   within a specific range is uniform (pure entropy).
+ *   within a specific range is uniform (pure entropy). // TODO dont remeber why.... please check
  */
 class HuffmanCodec
 {
@@ -146,17 +136,13 @@ public:
     /**
      * This function decompresses a single vector from the compressed file.
      *
-     * @param file_reader the file that the compressed file is at
-     * @param bit_reader lets read bits from the file
+     * @param buffer_ptr the buffer that holds the compressed block.
+     * @param num_bytes the number of bytes the compressed data takes.
+     * @param buffer_size the size of the buffer holding the compressed data.
      * @return a vector of coded vec which is a block of compressed data.
      */
-    CodedVec decompress(BinaryIO::FileReader& file_reader,BitReader& bit_reader);
+    static CodedVec decompress(uint8_t* buffer_ptr, size_t num_bytes, size_t buffer_size);
 
-    /**
-     * Rests the data structures that this object holds for a new compression.
-     * It must be called before each compression call IF the object was used before to compress or decompress somthing else.
-     */
-    void clear();
 
     //----------------------------------------------------------------
     // FIELDS
@@ -233,15 +219,6 @@ private:
     static void decode_distance(::CodedVec& block_code, uint32_t symbol, BitReader& bit_reader);
 
     /**
-     * this function reads new data into the buffer from the file, making sure that the data that was not read yeat is
-     * saved in the new buffer.
-     *
-     * @param file_reader the file to read the new data from
-     * @param bit_reader the handle to read single bits out of the file
-     */
-    void read_new_data_into_buffer(BinaryIO::FileReader& file_reader, BitReader& bit_reader);
-
-    /**
      * This function fills in the field 'windowLengthToCode' which is a table that lets us access in O(1) all the
      * relevent data to encode a window lenght without needing to calculate anything.
      * The reason we have this method for window lengths and not for distances is that there are 2069 different window
@@ -281,7 +258,6 @@ private:
     static constexpr int MAX_SUPPORTED_MATCH_LEN = 2068;
     std::array<WindowLengthToCode, MAX_SUPPORTED_MATCH_LEN + 1> windowLenToCode;
 
-    bool finished_file;
 
 
 

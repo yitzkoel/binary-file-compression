@@ -102,14 +102,4 @@ private:
 // Fix: Change the function to return a struct (e.g., LZMatch { bool found; uint64_t distance; uint16_t length; uint8_t literal; })
 // and remove those internal state variables.
 
-// TODO (Architecture - File I/O Coupling): Decouple the LZSS algorithm from the file system.
-// compress() and decompress() currently take a 'file_path', making it impossible to compress data
-// directly from RAM or a network stream without writing to disk first.
-// Fix: The algorithm should accept a memory buffer (e.g., std::span or std::vector<uint8_t>&).
-// Create a separate class (e.g., LzssStream or FileCompressor) to handle file reading, chunking, and buffer management.
-
-// TODO (Architecture - Separation of Concerns): Split the class into two distinct responsibilities:
-// 1. LzssEncoder: Pure algorithmic logic (manages the hash_map, finds matches, generates coded vector).
-// 2. BufferManager/IO: Handles reading raw bytes, managing 'index_in_buffer', and preventing out-of-bounds reads.
-
 #endif //LEMPEL_ZIV_ALGO_H

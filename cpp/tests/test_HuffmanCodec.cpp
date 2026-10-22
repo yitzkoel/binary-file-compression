@@ -8,6 +8,8 @@
 #include <random>
 #include <fstream>
 
+# define BUFFER_SIZE (1<<22) // 4MB
+
 /**
  * @class TestHuffmanCodec
  * @brief Test fixture for the Huffman coding engine.
@@ -66,16 +68,11 @@ protected:
 
         // Step 2: Initialize readers simulating the reading pipeline
         BinaryIO::FileReader file_reader(coded_vec_file_path);
-        file_reader.slide_window();
-
-        BitReader bit_reader(file_reader.get_buffer(), file_reader.get_num_bytes_read());
-
-        // Injecting the dependency configuration:
-        // The orchestrator defines the safe boundary for reading (8 bytes margin for 64-bit window).
-        bit_reader.set_safe_end(8);
+        std::array<uint8_t, BUFFER_SIZE> read_buffer{};
+        file_reader.read_bytes(read_buffer.data(), BUFFER_SIZE);
 
         // Decompress the binary file back into memory
-        auto res_vec = huffman_coder.decompress(file_reader, bit_reader);
+        auto res_vec = huffman_coder.decompress(read_buffer.data(), file_reader.get_num_bytes_read(),BUFFER_SIZE);
 
         // Step 3: Verify the integrity of the data within the block
         ASSERT_EQ(res_vec.size(), mock_lz_vector.size()) << "Vector size mismatch at block level!";

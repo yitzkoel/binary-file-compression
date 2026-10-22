@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <memory>
 
+# define BUFFER_SIZE (1<<22) // 4MB
+
 /**
  * @class LempelZivCodecTest
  * @brief Test fixture for the Lempel-Ziv (LZSS) compression algorithm.
@@ -368,8 +370,8 @@ TEST_F(LempelZivCodecTest, TestBasicCompression)
     };
 
     std::vector<uint32_t> expected_coded_vec = {
-        'a', 'a', 'b',  5 + WINDOW_OFFSET, 3, 'c', 'd',  4 + WINDOW_OFFSET, 2, 'd', 'a', 'b', 'c', 'e',
-         4 + WINDOW_OFFSET, 4, 'd', 6 + WINDOW_OFFSET, 21, 'f', 'g', EOF_SYMBOL
+        'a', 'a', 'b', 5 + WINDOW_OFFSET, 3, 'c', 'd', 4 + WINDOW_OFFSET, 2, 'd', 'a', 'b', 'c', 'e',
+        4 + WINDOW_OFFSET, 4, 'd', 6 + WINDOW_OFFSET, 21, 'f', 'g', EOF_SYMBOL
     };
 
     std::unique_ptr<std::array<uint8_t, BUFFER_SIZE>> buff_ptr = std::make_unique<std::array<uint8_t, BUFFER_SIZE>>();
@@ -394,8 +396,8 @@ TEST_F(LempelZivCodecTest, TestBasicDecompression)
     std::cout << "[INFO] Basic Decompression Test: Validates decoding an LZSS vector directly into a memory buffer.\n";
 
     std::vector<uint32_t> coded_vec = {
-        'a', 'a', 'b',  5 + WINDOW_OFFSET, 3, 'c', 'd',  4 + WINDOW_OFFSET, 2, 'd', 'a', 'b', 'c', 'e',
-         4 + WINDOW_OFFSET, 4, 'd', 6 + WINDOW_OFFSET, 21, 'f', 'g', EOF_SYMBOL
+        'a', 'a', 'b', 5 + WINDOW_OFFSET, 3, 'c', 'd', 4 + WINDOW_OFFSET, 2, 'd', 'a', 'b', 'c', 'e',
+        4 + WINDOW_OFFSET, 4, 'd', 6 + WINDOW_OFFSET, 21, 'f', 'g', EOF_SYMBOL
     };
 
     std::vector<uint8_t> expected_data = {
@@ -420,7 +422,13 @@ TEST_F(LempelZivCodecTest, TestBasicDecompression)
 
 TEST_F(LempelZivCodecTest, TestOnRealFilesCompressionAndDecompression)
 {
-    std::cout << "[INFO] Real Files End-to-End Test: Compress and decompress physical files ensuring lossless memory operations.\n";
+    std::cout <<
+        "[INFO] Real Files End-to-End Test: Compress and decompress physical files ensuring lossless memory operations.\n";
+
+    std::unique_ptr<std::array<uint8_t, BUFFER_SIZE>> read_buff_ptr = std::make_unique<std::array<
+        uint8_t, BUFFER_SIZE>>();
+    std::unique_ptr<std::array<uint8_t, BUFFER_SIZE>> write_buff_ptr = std::make_unique<std::array<
+        uint8_t, BUFFER_SIZE>>();
 
     std::vector<std::string> samp_files_path_name_vec = {
         "../../tests/test_files/Samp1.bin",
@@ -440,17 +448,17 @@ TEST_F(LempelZivCodecTest, TestOnRealFilesCompressionAndDecompression)
 
         // Load file chunk into memory
         BinaryIO::FileReader file_reader(file_name);
-        file_reader.slide_window();
+        file_reader.read_bytes(read_buff_ptr->data(), BUFFER_SIZE);
 
         // Use get_num_bytes_read() to accurately pass the exact data size, preventing trailing garbage compression
-        auto code_vec = compressor.compress(file_reader.get_buffer(), file_reader.get_num_bytes_read());
+        auto code_vec = compressor.compress(read_buff_ptr->data(), file_reader.get_num_bytes_read());
 
         // Decompress the generated vector into a new output buffer
         BinaryIO::FileWriter file_writer(res_file_name);
-        auto num_bytes_written = compressor.decompress(file_writer.get_buffer(), BUFFER_SIZE, code_vec);
+        auto num_bytes_written = compressor.decompress(write_buff_ptr->data(), BUFFER_SIZE, code_vec);
 
         // Write the decoded buffer to disk for verification
-        file_writer.flush_buffer_to_file(num_bytes_written);
+        file_writer.flush_buffer_to_file(write_buff_ptr->data(), num_bytes_written);
 
         EXPECT_EQ(std::filesystem::file_size(file_name), std::filesystem::file_size(res_file_name));
 
@@ -458,14 +466,12 @@ TEST_F(LempelZivCodecTest, TestOnRealFilesCompressionAndDecompression)
         BinaryIO::FileReader file(file_name);
         BinaryIO::FileReader res_file(res_file_name);
 
-        while (file.slide_window() && res_file.slide_window())
+        while (file.read_bytes(read_buff_ptr->data(),BUFFER_SIZE) && res_file.read_bytes(
+            read_buff_ptr->data(), BUFFER_SIZE))
         {
-            auto file_buffer = file.get_buffer();
-            auto res_file_buffer = res_file.get_buffer();
-
-            for(size_t j = 0; j < file.get_num_bytes_read(); j++)
+            for (size_t j = 0; j < file.get_num_bytes_read(); j++)
             {
-                EXPECT_EQ(file_buffer[j], res_file_buffer[j]);
+                EXPECT_EQ(read_buff_ptr->data()[j], read_buff_ptr->data()[j]);
             }
         }
     }

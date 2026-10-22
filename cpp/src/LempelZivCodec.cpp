@@ -86,7 +86,7 @@ uint64_t LempelZivCodec::decompress(uint8_t* buffer_ptr, size_t buffer_size, Cod
             }
 
             // check if the distance from the point where the window start is even possible
-            // (if it is true then "index_in_buffer - code_vec[index_in_coded_vec]  < 0" wich is impossible.
+            // (if it is true then "index_in_buffer - code_vec[index_in_coded_vec]  < 0" which is impossible.
             if (code_vec[index_in_coded_vec - 1] > index_in_buffer) [[unlikely]]{
                 throw std::runtime_error("CRITICAL: Corrupted LZSS vector -distance code matched a point before buffer start.");
             }
@@ -210,7 +210,7 @@ uint64_t LempelZivCodec::find_max_window_from_given_index(uint32_t index_to_star
     // make sure that index_to_start_searching is actually in the past
     assert(index_to_start_searching < index_in_buffer && "Search index must be in the past");
     // 3make sure that we wont overflow the buffer in the code
-    assert(index_in_buffer + max_window_size <= BUFFER_SIZE && "Window check exceeds physical buffer bounds");
+    assert(index_in_buffer + max_window_size <= num_bytes_in_buffer && "Window check exceeds physical buffer bounds");
     //############# ASSERT DECLERTIONS ###############//
 
 

@@ -35,11 +35,10 @@ size_t HuffmanCodec::compress(uint8_t* buffer_ptr, CodedVec& coded_vec)
 }
 
 void HuffmanCodec::compress_vec(const CodedVec& coded_vec,
-                            std::vector<HuffmanCode>& literalLen_code,
-                            std::vector<HuffmanCode>& distance_code,
-                            BitWriter& bit_writer)
+                                std::vector<HuffmanCode>& literalLen_code,
+                                std::vector<HuffmanCode>& distance_code,
+                                BitWriter& bit_writer)
 {
-
     // code the vector
     for (uint32_t i = 0; i < coded_vec.size(); i++)
     {
@@ -105,14 +104,16 @@ void HuffmanCodec::create_windowLenToCode_table(const std::vector<HuffmanCode>& 
 }
 
 
-
-
-CodedVec HuffmanCodec::decompress(BinaryIO::FileReader& file_reader,BitReader& bit_reader )
+CodedVec HuffmanCodec::decompress(uint8_t* buffer_ptr, size_t num_bytes, size_t buffer_size)
 {
-    CodedVec coded_vec;
+    // assert the error of handing an insfficiently large buffer for the algorithm implementation
+    assert(
+        num_bytes + NUM_BITS_TO_READ > num_bytes &&
+        "Wrong Buffer size was handed to the decompresser, the buffer should be 15 bytes larger than the compressed data");
 
-    // the file that the compressed data is in.
-    finished_file = false;
+    // prepare the buffer for reading bit by bit
+    BitReader bit_reader(buffer_ptr, buffer_size);
+    CodedVec coded_vec;
 
     // create maps that map from 15 bits to the symbol that it's huffman code start with those 15 bits
     std::vector<Decode> map_15bit_lit_len = create_15bit_to_symbol_table(LITERAL_AND_LEN_NUM_SYMBOLS, bit_reader);
@@ -120,13 +121,6 @@ CodedVec HuffmanCodec::decompress(BinaryIO::FileReader& file_reader,BitReader& b
 
     while (true)
     {
-        // if we have reached the end of the buffer we need to load more bytes from the file into it
-        if (!bit_reader.safe_read())
-        {
-            read_new_data_into_buffer(file_reader, bit_reader);
-        }
-
-
         // get the next 15 bits in the buffer
         uint16_t next_chunk = bit_reader.peak_bits(NUM_BITS_TO_READ);
         uint32_t symbol = map_15bit_lit_len[next_chunk].symbol;
@@ -140,14 +134,16 @@ CodedVec HuffmanCodec::decompress(BinaryIO::FileReader& file_reader,BitReader& b
             break;
         }
 
+        // we got a literal
         if (symbol < 256) coded_vec.push_back(symbol);
 
+        // else we git a window length
         else
         {
-            // we decode window lenght
+            // we decode window length
             decode_window_length(coded_vec, symbol, bit_reader);
 
-            // next we encode distance
+            // next we decode distance
             next_chunk = bit_reader.peak_bits(NUM_BITS_TO_READ);
             symbol = map_15bit_dist[next_chunk].symbol;
 
@@ -160,10 +156,6 @@ CodedVec HuffmanCodec::decompress(BinaryIO::FileReader& file_reader,BitReader& b
     return coded_vec;
 }
 
-void HuffmanCodec::clear()
-{
-    finished_file = false;
-}
 
 void HuffmanCodec::decode_window_length(::CodedVec& coded_vec, uint32_t symbol, BitReader& bit_reader)
 {
@@ -243,22 +235,6 @@ std::vector<Decode> HuffmanCodec::create_15bit_to_symbol_table(const int num_sym
 
     return lookup_table;
 }
-
-void HuffmanCodec::read_new_data_into_buffer(BinaryIO::FileReader& file_reader, BitReader& bit_reader)
-{
-    // copy the last 8 bytes in the buffer to the start and update bit_reader acording to the place it was.
-    bit_reader.cycle_buffer();
-
-    // fill in the buffer to the max from the first 8 bytes and update the fields
-
-    if (finished_file) throw std::runtime_error("CRITICAL: Reached unexpected end of file! Bitstream lost sync.");
-
-    finished_file = !(file_reader.read_bytes(
-        file_reader.get_buffer() + bit_reader.num_bytes_after_safe_end()
-        , BUFFER_SIZE - bit_reader.num_bytes_after_safe_end()));
-}
-
-
 
 uint16_t HuffmanCodec::map_window_len_to_symbol(uint32_t window_len)
 {
